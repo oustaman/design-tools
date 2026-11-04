@@ -196,7 +196,7 @@
   <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div>
 </form></dialog>
 
-<script src="flow-draw.js?v=202611030854"></script>
+<script src="flow-draw.js?v=202611041200"></script>
 <script src="tool-tour.js?v=202611030854"></script>
 <script src="tool-canvas.js?v=202611030854"></script>
 <script>
@@ -205,7 +205,7 @@
      from a copy, then remove, merge, move, rename and add screens. Every step now ends up kept,
      merged, moved or removed; the drawing is a 16:9 slide. Nothing to learn but the buttons. */
   const $ = id => document.getElementById(id);
-  const { esc, nums, counts, fatesOf, COL, graph, cellsOf, PAL, migrate, DEFS, FONT, wrap: FD_wrap, clip: FD_clip } = window.FD;
+  const { esc, nums, counts, fatesOf, COL, graph, cellsOf, PAL, migrate, DEFS, FONT, fill } = window.FD;
   const fates = () => fatesOf(S.before, S.after);
   const KEY = 'dt-flow';
   let uid = 1; const nid = p => p + (uid++) + '-' + Date.now().toString(36);
@@ -251,9 +251,9 @@
       st('n3', 'Proof', { w: 'declaration + send', c: 'blue', from: ['c6', 'c7'], p: { c: 4, r: 0 } }),
       st('q2', 'Which?', { k: 'q', off: true, ans: [{ t: 'upload', to: '' }, { t: 'university', to: 'uni' }], p: { c: 4, r: 1 } }),
       st('up', 'Upload', { w: 'certificate', off: true, p: { c: 3, r: 1 } }),
-      st('n4', 'Sent', { w: 'reference CT-…', c: 'green', from: ['c7'], p: { c: 4, r: 2 } }),
+      st('n4', 'Sent', { w: 'reference number', c: 'green', from: ['c7'], p: { c: 4, r: 2 } }),
       st('uni', 'University', { w: 'confirms', off: true, br: true, to: 'n4', p: { c: 5, r: 1 } }),
-      st('other', 'Other discounts', { w: '25% single person…', off: true, br: true, p: { c: 2, r: 1 } }),
+      st('other', 'Other discounts', { w: '25% single person and others', off: true, br: true, p: { c: 2, r: 1 } }),
     ];
     return { goal: 'A house where everyone studies full time stops being billed', before: B, after: A, tab: 'after', view: 'after',
       legend: { blue: 'My screens', green: 'Finished' },
@@ -341,10 +341,13 @@
 
   /* ---------- the slide: 1920 × 1080, read left to right ---------- */
   const W = 1920, H = 1080, M = 72;
-  /* the goal, on one line at full size, or two lines a little smaller */
+  /* the goal: all of it, on one line at full size, or smaller on as many lines as the room above the diagram takes */
   function goalLines() {
-    const g = S.goal || 'Your goal', big = g.length <= 66, fs = big ? 44 : 34, lines = big ? [g] : FD_clip(FD_wrap(g, 92), 2);
-    return `<g data-goal="1">${lines.map((l, i) => `<text x="${M}" y="${M + (big ? 72 : 60 + i * 42)}" font-size="${fs}" font-weight="800" fill="${COL.ink}">${esc(l)}</text>`).join('')}</g>`;
+    const g = S.goal || 'Your goal', room = W - 2 * M, one = fill(g, room, 44, 800);
+    if (one.length === 1) return `<g data-goal="1"><text x="${M}" y="${M + 72}" font-size="44" font-weight="800" fill="${COL.ink}">${esc(g)}</text></g>`;
+    let fs = 34, lines = fill(g, room, fs, 800); while (lines.length * fs * 1.22 > 86 && fs > 12) { fs--; lines = fill(g, room, fs, 800); }
+    const lh = fs * 1.22;
+    return `<g data-goal="1">${lines.map((l, i) => `<text x="${M}" y="${(M + 60 - 34 + fs + i * lh).toFixed(1)}" font-size="${fs}" font-weight="800" fill="${COL.ink}">${esc(l)}</text>`).join('')}</g>`;
   }
   const GEO = { before: {}, after: {} }, LEG = '@legend';
   function slide() {
@@ -375,7 +378,9 @@
     $('slide').innerHTML = slide(); mark();
     const cb = counts(S.before), ca = counts(S.after);
     const t = c => `<b>${c.steps}</b> step${c.steps === 1 ? '' : 's'}, <b>${c.waits}</b> wait${c.waits === 1 ? '' : 's'}, <b>${c.stuck}</b> stuck`;
-    $('tally').innerHTML = `Now: ${t(cb)}` + (S.after.length ? ` · Your version: ${t(ca)}` : '');
+    const shown = S.view === 'both' ? [GEO.before, GEO.after] : [GEO[S.view]], low = shown.filter(g => g.lowered), least = low.length ? Math.min(...low.map(g => g.fs)) : 0;
+    const tight = shown.some(g => g.fits === false) ? 'Too many words to fit even at the smallest text. Shorten a box or split it in two.' : least && least < 18 ? `Long words have brought the text down to ${least}, which is hard to read on a call. Shorten a box or split it in two.` : '';
+    $('tally').innerHTML = `Now: ${t(cb)}` + (S.after.length ? ` · Your version: ${t(ca)}` : '') + (tight ? ` · <b style="color:${COL.bad}">${tight}</b>` : '');
   }
 
   /* history: every change can be undone */
