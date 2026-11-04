@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canvas maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<header class="tb-bar">
+  <a class="tb-back" href="index.html">← All tools</a>
+  <h1 class="tb-name">Canvas maker</h1>
+  <span class="seg" role="group" aria-label="View"><button type="button" data-act="view" data-v="both">Both</button><button type="button" data-act="view" data-v="edit">Edit</button><button type="button" data-act="view" data-v="slide">Slide</button></span>
+  <span class="gt-msg" id="msg" role="status"></span>
+  <span class="tb-sp"></span>
+  <button type="button" class="tbtn" data-act="undo" id="undo" title="Undo (Ctrl or ⌘ Z)">Undo</button>
+  <button type="button" class="tbtn" data-act="redo" id="redo" title="Redo (Ctrl or ⌘ Shift Z)">Redo</button>
+  <button type="button" class="tbtn" data-act="savebox" aria-haspopup="dialog">Save</button>
+  <button type="button" class="tbtn pri" data-act="png">Copy the slide</button>
+  <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
+    <button type="button" data-act="dl">Download the slide as a PNG</button>
+    <button type="button" data-act="table">Copy as a table</button>
+    <button type="button" data-act="example">See the example</button>
+    <button type="button" data-act="clear">Empty this canvas</button>
+  </div></details>
+  <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
+</header>
+<div class="gt-main" id="main">
+  <section class="gt-edit" aria-label="Edit">
+    <div class="gt-top"><label for="title">What is this for?</label><input id="title" type="text" placeholder="The service or decision this canvas is about"></div>
+    <div class="cv-pick"><label for="tpl">Canvas</label><select id="tpl"></select><label class="cv-check"><input id="prompts" type="checkbox"> Show the questions on the slide</label><span id="credit"></span></div>
+    <div id="fields"></div>
+  </section>
+  <section class="gt-prev" aria-label="The slide"><p class="gt-note" id="fit" role="status"></p><div id="slide"></div></section>
+</div>
+<dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
+  <ul>
+    <li><b>Pick a canvas.</b> The fields and their layout change to suit it, and each canvas keeps its own words when you switch.</li>
+    <li><b>Each field has a question</b> to help you think. The words are yours: type one note per line, and each line becomes its own note on the slide.</li>
+    <li><b>Show the questions on the slide</b> to print a blank worksheet for a workshop or a class.</li>
+    <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+    <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+  </ul>
+  <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
+<div id="savehost"></div>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script>
+(function () {
+  const { FONT, INK, MUTE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const KEY = 'dt-canvas', TAG = 'CANVAS1', W = 1920, H = 1080, M = 56, GAP = 10, READABLE = 18, BIG = 26, SMALL = 14;
+  /* A template is its name, the size of its grid, how tall each row is, and its fields:
+     [id, name, question, tone, column, row, columns across, rows down]. A new canvas is one more entry here. */
+  const TEMPLATES = {
+    problem: { label: 'Problem frame', columns: 4, rows: [0.6, 1, 1], fields: [
+      ['problem', 'The problem', 'What is going wrong, for whom, in one or two sentences?', 'red', 0, 0, 4, 1],
+      ['who', 'Who has it', 'Who is affected, and who is affected most?', 'blue', 0, 1, 1, 1],
+      ['needs', 'What they need', 'What are they trying to get done?', 'blue', 1, 1, 1, 1],
+      ['now', 'What happens now', 'How do they manage today, and what does it cost them?', 'grey', 2, 1, 1, 1],
+      ['outcome', 'The outcome we want', 'What would change if this were solved, and how would we know?', 'green', 3, 1, 1, 1],
+      ['in', 'In scope', 'Where does this work start and end?', 'white', 0, 2, 1, 1],
+      ['out', 'Out of scope', 'What are we deliberately leaving alone?', 'white', 1, 2, 1, 1],
+      ['limits', 'Constraints', 'What can we not change: policy, money, time, technology?', 'amber', 2, 2, 1, 1],
+      ['unknown', 'What we do not know yet', 'What must we find out, and what are we assuming?', 'amber', 3, 2, 1, 1],
+    ] },
+    swot: { label: 'SWOT', columns: 2, rows: [1, 1, 0.6], fields: [
+      ['s', 'Strengths', 'What do we do well that we can build on?', 'green', 0, 0, 1, 1],
+      ['w', 'Weaknesses', 'Where do we fall short, by whose account?', 'red', 1, 0, 1, 1],
+      ['o', 'Opportunities', 'What outside us could we take advantage of?', 'blue', 0, 1, 1, 1],
+      ['t', 'Threats', 'What outside us could hurt this?', 'amber', 1, 1, 1, 1],
+      ['act', 'So what we will do', 'Which of these changes what we do next?', 'white', 0, 2, 2, 1],
+    ] },
+    bmc: { label: 'Business Model Canvas', columns: 10, rows: [1, 1, 0.8], credit: 'Business Model Canvas by Strategyzer.com, CC BY-SA 3.0', link: 'https://www.strategyzer.com/', fields: [
+      ['kp', 'Key partners', 'Who do we rely on, and for what?', 'grey', 0, 0, 2, 2],
+      ['ka', 'Key activities', 'What must we do to deliver the value?', 'grey', 2, 0, 2, 1],
+      ['kr', 'Key resources', 'What must we have to deliver it?', 'grey', 2, 1, 2, 1],
+      ['vp', 'Value propositions', 'What do we offer, and what problem does it solve?', 'green', 4, 0, 2, 2],
+      ['cr', 'Customer relationships', 'What relationship does each group expect?', 'blue', 6, 0, 2, 1],
+      ['ch', 'Channels', 'How do we reach each group?', 'blue', 6, 1, 2, 1],
+      ['cs', 'Customer segments', 'Who are we creating value for?', 'blue', 8, 0, 2, 2],
+      ['cost', 'Cost structure', 'What are the biggest costs, and what drives them?', 'red', 0, 2, 5, 1],
+      ['rev', 'Revenue streams', 'What will people pay for, and how?', 'amber', 5, 2, 5, 1],
+    ] },
+  };
+  const blankBoard = () => ({ title: '', cells: {} });
+  const blank = () => ({ cur: 'problem', view: 'both', prompts: false, boards: Object.fromEntries(Object.keys(TEMPLATES).map(k => [k, blankBoard()])) });
+  function tidy(s) {
+    if (!s || !s.boards || !TEMPLATES[s.cur]) return null;
+    Object.keys(TEMPLATES).forEach(k => { s.boards[k] = s.boards[k] || blankBoard(); s.boards[k].cells = s.boards[k].cells || {}; s.boards[k].title = s.boards[k].title || ''; });
+    s.view = s.view || 'both'; s.prompts = !!s.prompts;
+    return s;
+  }
+  let S = tidy(window.Slide.load(KEY)) || blank(), current = { svg: '', h: H };
+  const hist = window.Slide.history(() => S, v => { S = tidy(v) || S; });
+  const B = () => S.boards[S.cur], T = () => TEMPLATES[S.cur];
+  const save = () => window.Slide.store(KEY, S);
+  const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('msg').textContent = ''; }, 3500); };
+  const notesIn = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean);
+  const fieldsOf = t => t.fields.map(([id, name, ask, tone, x, y, w, h]) => ({ id, name, ask, tone, x, y, w, h }));
+
+  $('savehost').innerHTML = window.Slide.saveDialog(TAG, 'canvas');
+  $('tpl').innerHTML = Object.keys(TEMPLATES).map(k => `<option value="${k}">${esc(TEMPLATES[k].label)}</option>`).join('');
+
+  /* ---------- the slide ---------- */
+  /* what one field needs at this text size */
+  function fieldAt(f, w, fs) {
+    const head = Math.max(fs, 20), inner = w - 24, padX = Math.round(fs * 0.45), padY = Math.round(fs * 0.3), gap = Math.round(fs * 0.3), lh = fs * 1.24, small = Math.max(14, fs - 4);
+    const names = wrap(f.name, inner, head, 700), asks = S.prompts ? wrap(f.ask, inner, small) : [];
+    const notes = notesIn(B().cells[f.id]).map(t => { const lines = wrap(t, inner - 2 * padX, fs); return { lines, h: lines.length * lh + 2 * padY }; });
+    const top = 10 + names.length * head * 1.2 + asks.length * small * 1.25 + 6;
+    return { head, small, padX, padY, gap, lh, names, asks, notes, top, need: top + notes.reduce((a, n) => a + n.h + gap, 0) + 8 };
+  }
+  function layout(fs, h) {
+    const t = T(), titles = wrap(B().title || t.label, W - 2 * M, 42, 700), y0 = M + 30 + titles.length * 50 + 14, foot = t.credit ? 30 : 0;
+    const room = h - M + 20 - y0 - foot - GAP * (t.rows.length - 1), share = t.rows.reduce((a, b) => a + b, 0), heights = t.rows.map(r => room * r / share);
+    const unit = (W - 2 * M - GAP * (t.columns - 1)) / t.columns;
+    let fits = true;
+    const laid = fieldsOf(t).map(f => {
+      const w = unit * f.w + GAP * (f.w - 1), x = M + f.x * (unit + GAP), y = y0 + heights.slice(0, f.y).reduce((a, b) => a + b + GAP, 0), fh = heights.slice(f.y, f.y + f.h).reduce((a, b) => a + b, 0) + GAP * (f.h - 1), a = fieldAt(f, w, fs);
+      if (a.need > fh) fits = false;
+      return { f, x, y, w, h: fh, a };
+    });
+    return { fs, titles, laid, fits, foot };
+  }
+  /* the words come down in size until they fit; past the smallest size the slide grows taller rather than lose any */
+  function pick() {
+    for (let fs = BIG; fs >= SMALL; fs--) { const l = layout(fs, H); if (l.fits) return { l, h: H }; }
+    for (let h = H + 40; h < H * 6; h += 40) { const l = layout(SMALL, h); if (l.fits) return { l, h }; }
+    return { l: layout(SMALL, H * 6), h: H * 6 };
+  }
+  function draw() {
+    const { l, h } = pick(), t = T();
+    let g = `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(t.label.toUpperCase())}</text>`;
+    g += `<text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>`;
+    l.laid.forEach(({ f, x, y, w, h: fh, a }) => {
+      const tone = TONES[f.tone] || TONES.white;
+      g += `<rect x="${x}" y="${y}" width="${w}" height="${fh}" rx="8" fill="#F5F4F2"/><rect x="${x}" y="${y}" width="${w}" height="5" fill="${tone[1]}"/>`;
+      g += `<text font-size="${a.head}" font-weight="700" fill="${INK}">${tspans(a.names, x + 12, y + 8 + a.head, a.head * 1.2)}</text>`;
+      if (a.asks.length) g += `<text font-size="${a.small}" fill="${MUTE}">${tspans(a.asks, x + 12, y + 10 + a.names.length * a.head * 1.2 + a.small, a.small * 1.25)}</text>`;
+      let ny = y + a.top;
+      a.notes.forEach(n => {
+        g += `<rect x="${x + 12}" y="${ny.toFixed(1)}" width="${w - 24}" height="${n.h.toFixed(1)}" rx="5" fill="${tone[0]}" stroke="${tone[1]}" stroke-width="1.5"/>`;
+        g += `<text font-size="${l.fs}" fill="${INK}">${tspans(n.lines, x + 12 + a.padX, ny + a.padY + l.fs * 0.92, a.lh)}</text>`;
+        ny += n.h + a.gap;
+      });
+    });
+    if (t.credit) g += `<text x="${W - M}" y="${h - 22}" font-size="18" fill="${MUTE}" text-anchor="end">${esc(t.credit)}</text>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="img" aria-label="${esc(B().title || t.label)}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
+    $('slide').innerHTML = svg;
+    const note = $('fit');
+    note.classList.toggle('warn', l.fs < READABLE || h > H);
+    note.textContent = h > H ? `Taller than a slide even at the smallest text (${l.fs}). Cut some words.` : l.fs < READABLE ? `Text is down to ${l.fs}, which is hard to read on a call. Cut some words.` : `All your words fit, at text size ${l.fs}.`;
+    current = { svg, h };
+  }
+
+  /* ---------- the editor, in the shape of the canvas ---------- */
+  function renderFields() {
+    const t = T();
+    $('fields').innerHTML = `<div class="cv-grid" style="grid-template-columns:repeat(${t.columns},minmax(0,1fr))">${fieldsOf(t).map(f => `<div class="cv-field" style="grid-column:${f.x + 1} / span ${f.w};grid-row:${f.y + 1} / span ${f.h}"><label for="f-${f.id}">${esc(f.name)}</label><small>${esc(f.ask)}</small><textarea id="f-${f.id}" data-field="${f.id}" rows="3" style="background:${(TONES[f.tone] || TONES.white)[0]}">${esc(B().cells[f.id] || '')}</textarea></div>`).join('')}</div>`;
+  }
+  function chrome() {
+    $('main').className = 'gt-main ' + S.view;
+    document.querySelectorAll('[data-act="view"]').forEach(b => { const on = b.dataset.v === S.view; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r;
+  }
+  function renderAll() { armed = true; $('tpl').value = S.cur; $('title').value = B().title; $('prompts').checked = S.prompts; $('credit').innerHTML = T().credit ? `<a href="${T().link}" rel="noopener">${esc(T().credit)}</a>` : ''; renderFields(); chrome(); draw(); save(); }
+
+  /* one undo step per field: the first keystroke after arriving in it */
+  let armed = true;
+  document.addEventListener('focusin', e => { if (e.target.matches('input,textarea')) armed = true; });
+  document.addEventListener('input', e => {
+    const t = e.target, f = t.dataset.field; if (!f && t.id !== 'title') return;
+    if (armed) { hist.snap(); armed = false; }
+    if (f) B().cells[f] = t.value; else B().title = t.value;
+    chrome(); draw(); save();
+  });
+  $('tpl').addEventListener('change', e => { S.cur = e.target.value; renderAll(); });
+  $('prompts').addEventListener('change', e => { S.prompts = e.target.checked; renderAll(); });
+
+  /* the same missed bin case as the other tools */
+  const EXAMPLES = {
+    problem: { title: 'Report a missed bin collection', cells: {
+      problem: 'People whose bin was missed cannot tell what happens after they report it, so they ring to chase, and the contact centre spends its time answering them',
+      who: 'Households with a missed collection\nMost affected: people who cannot use the form', needs: 'Get the bin emptied\nKnow when that will happen',
+      now: 'Fill in a long form, then ring to check\nFour of five calls listened to were chasing a report', outcome: 'People report once and know what happens next\nFewer calls chasing a report',
+      in: 'From noticing the missed bin to the bin being collected', out: 'How rounds are planned\nGarden waste subscriptions', limits: 'Return within two working days is set by the council\nThe in-cab device contract runs for two more years', unknown: 'Whether crews can act on reports the same day\nAssumption: round data is current' } },
+    swot: { title: 'Report a missed bin collection: where we stand', cells: {
+      s: 'Crews already mark jobs done on a device\nThe contact centre knows the rounds', w: 'Calendar and website disagree\nPhone reports may not reach the case system',
+      o: 'Text messages are already paid for\nThe form is due for replacement this year', t: 'The in-cab contract limits changes\nThe depot may not have time to take part',
+      act: 'Fix the collection dates first, because everything else relies on them\nUse the form replacement to join it to the round data' } },
+    bmc: { title: 'A paid garden waste collection', cells: {
+      kp: 'Vehicle contractor\nComposting site', ka: 'Collecting on set rounds\nRenewing subscriptions', kr: 'Crews and vehicles\nRound data', vp: 'Garden waste gone every fortnight, without a trip to the tip',
+      cr: 'Set up once, renewed each year', ch: 'Council website\nReminder letter', cs: 'Households with gardens\nPeople who cannot get to the tip',
+      cost: 'Crews and fuel\nComposting fees\nBins', rev: 'Yearly subscription per bin' } },
+  };
+  function tableOf() { const rows = fieldsOf(T()).map(f => [f.name, notesIn(B().cells[f.id]).join('; ')]); return { html: `<table border="1">${rows.map(r => `<tr><th>${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>`, text: rows.map(r => r.join('\t')).join('\n') }; }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, name = `canvas-${S.cur}.png`, png = () => window.Slide.pngOf(current.svg, W, current.h);
+    if (act === 'view') { S.view = b.dataset.v; chrome(); draw(); save(); return; }
+    if (act === 'undo') { if (hist.undo()) renderAll(); return; }
+    if (act === 'redo') { if (hist.redo()) renderAll(); return; }
+    if (act === 'png') return window.Slide.copyPicture(png(), name, say);
+    if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), name); } catch (x) { say('That did not work in this browser.'); } return; }
+    if (act === 'table') { b.closest('details').open = false; const t = tableOf(); return window.Slide.copyTable(t.html, t.text, say); }
+    if (act === 'example') { b.closest('details').open = false; hist.snap(); S.boards[S.cur] = JSON.parse(JSON.stringify(EXAMPLES[S.cur])); say('The example is in. Undo brings your work back.'); return renderAll(); }
+    if (act === 'clear') { b.closest('details').open = false; hist.snap(); S.boards[S.cur] = blankBoard(); say('Emptied. Undo brings it back.'); return renderAll(); }
+    if (act === 'help') return $('helpdlg').showModal();
+    if (act === 'savebox') { $('savecode').value = window.Slide.encode(TAG, S); $('savemsg').textContent = ''; return $('savedlg').showModal(); }
+    if (act === 'savecopy') return window.Slide.copyText($('savecode').value, t => { $('savemsg').textContent = t; });
+    if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
+  });
+  addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+  renderAll();
+})();
+</script>
+</body>
+</html>

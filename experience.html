@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experience map — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script src="tool-grid.js"></script>
+<script>
+(function () {
+  const FEEL = ['Very good', 'Good', 'Mixed', 'Bad', 'Very bad'];
+  const lanes = () => [
+    { name: 'What they do', tone: 'blue' },
+    { name: 'What they think', tone: 'white' },
+    { name: 'Where it happens', tone: 'grey' },
+    { name: 'How it feels', tone: 'white', scale: FEEL },
+    { name: 'Evidence for this', tone: 'grey' },
+    { name: 'Opportunities', tone: 'green' },
+  ].map((r, i) => ({ id: 'r' + i, ...r }));
+  const blank = () => ({ title: '', view: 'both', cells: {}, rows: lanes(), cols: ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'].map((name, i) => ({ id: 'c' + i, name })) });
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection';
+    s.cols = ['Notice', 'Find out what to do', 'Report it', 'Wait', 'Bin collected'].map((name, i) => ({ id: 'c' + i, name }));
+    const fill = {
+      0: ['Sees the bin is still full', 'Searches the council website', 'Enters a postcode\nPicks the bin type', 'Checks for an update', 'Puts the bin back'],
+      1: ['Was it missed, or did they come early?', 'Which of these dates is right?', 'Why do they need all this?', 'Has anyone read it?', 'Good, but will it happen again?'],
+      2: ['At home', 'Phone, council website', 'Phone, report form', 'Text message, phone line', 'At home'],
+      3: ['Mixed', 'Bad', 'Bad', 'Very bad', 'Good'],
+      4: ['Assumption: not yet asked', 'Calendar and website disagreed on three of ten rounds', 'Three of six people stopped at the bin type', 'Four of five calls listened to were chasing a report', 'Assumption: not yet asked'],
+      5: ['', 'One source for collection days', 'Find the bins from the postcode', 'Say when the return round is due', ''],
+    };
+    Object.keys(fill).forEach(r => fill[r].forEach((t, c) => { if (t) s.cells[`r${r}|c${c}`] = t; }));
+    return s;
+  }
+  window.GridTool({
+    key: 'dt-experience', tag: 'EXPERIENCE1', name: 'Experience map', what: 'map', kicker: 'EXPERIENCE MAP',
+    colWord: 'stage', laneWord: 'lane', colName: n => 'Stage ' + n, titleHint: 'What someone is trying to get done',
+    blank, example,
+    help: `<ul>
+      <li><b>Stages</b> run across, in the order the person meets them.</li>
+      <li><b>Lanes</b> run down. Type one note per line in a cell, and each line becomes its own note on the slide.</li>
+      <li><b>How it feels</b> is a line across the stages: pick a word for each one. The word stays on the slide, so it still reads in black and white. Leave a stage as “Not set” if you do not know.</li>
+      <li><b>Evidence for this</b> sits under the line, so it is clear what supports each point. Write “Assumption:” where nothing does yet.</li>
+      <li><b>On slide</b> shows or hides a lane, so you can keep notes that do not go on the slide.</li>
+      <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+      <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+    </ul>`,
+  });
+})();
+</script>
+</body>
+</html>

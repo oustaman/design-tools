@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site map maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<header class="tb-bar">
+  <a class="tb-back" href="index.html">← All tools</a>
+  <h1 class="tb-name">Site map maker</h1>
+  <span class="seg" role="group" aria-label="View"><button type="button" data-act="view" data-v="both">Both</button><button type="button" data-act="view" data-v="edit">Edit</button><button type="button" data-act="view" data-v="slide">Slide</button></span>
+  <span class="gt-msg" id="msg" role="status"></span>
+  <span class="tb-sp"></span>
+  <button type="button" class="tbtn" data-act="undo" id="undo" title="Undo (Ctrl or ⌘ Z)">Undo</button>
+  <button type="button" class="tbtn" data-act="redo" id="redo" title="Redo (Ctrl or ⌘ Shift Z)">Redo</button>
+  <button type="button" class="tbtn" data-act="savebox" aria-haspopup="dialog">Save</button>
+  <button type="button" class="tbtn pri" data-act="png">Copy the slide</button>
+  <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
+    <button type="button" data-act="dl">Download the slide as a PNG</button>
+    <button type="button" data-act="outline">Copy as an outline</button>
+    <button type="button" data-act="example">See the example</button>
+    <button type="button" data-act="clear">Start again</button>
+  </div></details>
+  <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
+</header>
+<div class="gt-main" id="main">
+  <section class="gt-edit" aria-label="Edit">
+    <div class="gt-top"><label for="title">What is this for?</label><input id="title" type="text" placeholder="The site, and whether this is how it is or how it could be"></div>
+    <p class="sm-hint">Enter adds a page below. Tab moves a page under the one above, and Shift and Tab moves it back out.</p>
+    <ul class="sm-list" id="list"></ul>
+  </section>
+  <section class="gt-prev" aria-label="The slide"><p class="gt-note" id="fit" role="status"></p><div id="slide"></div></section>
+</div>
+<dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
+  <ul>
+    <li><b>Type the pages as an outline.</b> The first line is the top of the site, and the tree on the slide is drawn from the outline.</li>
+    <li><b>Enter</b> adds a page below. <b>Tab</b> moves a page under the one above, and <b>Shift and Tab</b> moves it back out. Pages under it go with it.</li>
+    <li><b>↑ and ↓</b> move a page, and the pages under it, past its neighbours.</li>
+    <li><b>Showing a change?</b> Mark a page new, changed, moved or removed, and the word appears on its box, so it still reads in black and white.</li>
+    <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+    <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+  </ul>
+  <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
+<div id="savehost"></div>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script>
+(function () {
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const KEY = 'dt-sitemap', TAG = 'SITEMAP1', W = 1920, H = 1080, M = 56, GAP = 14, READABLE = 18, BIG = 26, SMALL = 14;
+  const MARKS = { '': null, new: ['New', 'green'], changed: ['Changed', 'amber'], moved: ['Moved', 'blue'], removed: ['Removed', 'red'] };
+  let uid = 1; const nid = () => 'p' + (uid++) + '-' + Date.now().toString(36);
+  const page = (t, d, m = '') => ({ id: nid(), t, d, m });
+  const blank = () => ({ title: '', view: 'both', pages: [page('Home', 0)] });
+  /* the first page is the top of the site, and no page sits more than one level under the one above it */
+  function level(list) { list.forEach((p, i) => { p.d = i ? Math.max(1, Math.min(list[i - 1].d + 1, p.d)) : 0; }); return list; }
+  function tidy(s) {
+    if (!s || !Array.isArray(s.pages) || !s.pages.length) return null;
+    s.title = s.title || ''; s.view = s.view || 'both';
+    s.pages.forEach(p => { p.id = p.id || nid(); p.t = p.t || ''; p.d = +p.d || 0; p.m = MARKS[p.m] ? p.m : ''; });
+    level(s.pages);
+    return s;
+  }
+  let S = tidy(window.Slide.load(KEY)) || blank(), current = { svg: '', h: H }, focusId = null;
+  const hist = window.Slide.history(() => S, v => { S = tidy(v) || S; });
+  const save = () => window.Slide.store(KEY, S);
+  const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('msg').textContent = ''; }, 3500); };
+  $('savehost').innerHTML = window.Slide.saveDialog(TAG, 'site map');
+
+  /* a page and everything under it */
+  function branch(i) { let j = i + 1; while (j < S.pages.length && S.pages[j].d > S.pages[i].d) j++; return j; }
+  const at = id => S.pages.findIndex(p => p.id === id);
+  function shift(id, by) { const i = at(id); if (i < 1) return; const end = branch(i); for (let k = i; k < end; k++) S.pages[k].d += by; level(S.pages); }
+  function step(id, dir) {
+    const i = at(id); if (i < 1) return; const end = branch(i), d = S.pages[i].d, chunk = S.pages.slice(i, end);
+    if (dir < 0) { let k = i - 1; while (k > 0 && S.pages[k].d > d) k--; if (k < 1 || S.pages[k].d !== d) return; S.pages.splice(i, chunk.length); S.pages.splice(k, 0, ...chunk); }
+    else { if (end >= S.pages.length || S.pages[end].d !== d) return; const after = branch(end); S.pages.splice(i, chunk.length); S.pages.splice(after - chunk.length, 0, ...chunk); }
+    level(S.pages);
+  }
+  const canUp = i => { if (i < 1) return false; let k = i - 1; while (k > 0 && S.pages[k].d > S.pages[i].d) k--; return k > 0 && S.pages[k].d === S.pages[i].d; };
+  const canDown = i => { if (i < 1) return false; const e = branch(i); return e < S.pages.length && S.pages[e].d === S.pages[i].d; };
+
+  /* ---------- the slide: the top page, its sections across, and what sits under each going down ---------- */
+  function boxOf(p, w, fs) {
+    const padX = Math.round(fs * 0.5), padY = Math.round(fs * 0.35), small = Math.max(13, Math.round(fs * 0.68)), lines = wrap(p.t || ' ', w - 2 * padX, fs, p.d < 2 ? 700 : 400), mark = MARKS[p.m];
+    return { p, w, lines, mark, padX, padY, small, h: lines.length * fs * 1.24 + (mark ? small * 1.3 : 0) + 2 * padY };
+  }
+  function layout(fs) {
+    const titles = wrap(S.title || 'Site map', W - 2 * M, 42, 700), y0 = M + 30 + titles.length * 50 + 14, top = S.pages[0], rootW = Math.min(560, W - 2 * M);
+    const root = { ...boxOf(top, rootW, fs), x: (W - rootW) / 2, y: y0 };
+    const sections = []; S.pages.slice(1).forEach(p => { if (p.d === 1) sections.push([p]); else sections[sections.length - 1].push(p); });
+    const n = Math.max(1, sections.length), cw = (W - 2 * M - GAP * (n - 1)) / n, indent = Math.min(fs * 1.1, cw * 0.12), secY = root.y + root.h + 56, gap = Math.round(fs * 0.34);
+    let bottom = root.y + root.h;
+    const cols = sections.map((pages, c) => {
+      const x0 = M + c * (cw + GAP); let y = secY; const stack = [];
+      const boxes = pages.map(p => { const off = Math.min((p.d - 1) * indent, cw * 0.5), b = { ...boxOf(p, cw - off, fs), x: x0 + off, y }; y += b.h + gap;
+        stack[p.d] = b; b.parent = p.d > 1 ? stack[p.d - 1] : null; return b; });
+      bottom = Math.max(bottom, y);
+      return { x0, boxes };
+    });
+    return { fs, titles, root, cols, secY, bottom: bottom + 10, cw };
+  }
+  function pick() {
+    for (let fs = BIG; fs >= SMALL; fs--) { const l = layout(fs); if (l.bottom <= H - M + 20) return { l, h: H }; }
+    const l = layout(SMALL); return { l, h: Math.ceil(l.bottom + M) };
+  }
+  function box(b, fs) {
+    const tone = b.mark ? TONES[b.mark[1]] : b.p.d < 2 ? (b.p.d ? TONES.blue : ['#1A1618', '#1A1618']) : TONES.white, gone = b.p.m === 'removed', ink = !b.mark && !b.p.d ? '#fff' : INK;
+    let g = `<rect x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="6" fill="${tone[0]}" stroke="${tone[1]}" stroke-width="2"${gone ? ' stroke-dasharray="8 6"' : ''}/>`;
+    g += `<text font-size="${fs}" font-weight="${b.p.d < 2 ? 700 : 400}" fill="${ink}">${tspans(b.lines, b.x + b.padX, b.y + b.padY + fs * 0.92, fs * 1.24)}</text>`;
+    if (b.mark) g += `<text x="${b.x + b.padX}" y="${(b.y + b.h - b.padY - 2).toFixed(1)}" font-size="${b.small}" font-weight="700" fill="${tone[1]}">${esc(b.mark[0])}</text>`;
+    return g;
+  }
+  function draw() {
+    const { l, h } = pick(), lc = `stroke="${LINE}" stroke-width="2.5" fill="none"`;
+    let g = `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">SITE MAP</text><text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>`;
+    /* the lines first, so the boxes sit on top of them */
+    if (l.cols.length) {
+      const cx = W / 2, rb = l.root.y + l.root.h, bus = l.secY - 26, mids = l.cols.map(c => c.x0 + l.cw / 2);
+      g += `<path d="M${cx},${rb} V${bus}" ${lc}/><path d="M${Math.min(cx, ...mids)},${bus} H${Math.max(cx, ...mids)}" ${lc}/>`;
+      mids.forEach(m => { g += `<path d="M${m},${bus} V${l.secY}" ${lc}/>`; });
+    }
+    l.cols.forEach(c => c.boxes.forEach(b => { if (b.parent) { const sx = b.parent.x + Math.min(10, (b.x - b.parent.x) / 2 || 4); g += `<path d="M${sx.toFixed(1)},${(b.parent.y + b.parent.h).toFixed(1)} V${(b.y + b.h / 2).toFixed(1)} H${b.x.toFixed(1)}" ${lc}/>`; } }));
+    g += box(l.root, l.fs); l.cols.forEach(c => c.boxes.forEach(b => { g += box(b, l.fs); }));
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="img" aria-label="${esc(S.title || 'Site map')}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
+    $('slide').innerHTML = svg;
+    const note = $('fit'), count = `${S.pages.length} page${S.pages.length === 1 ? '' : 's'}, ${Math.max(...S.pages.map(p => p.d)) + 1} level${S.pages.some(p => p.d) ? 's' : ''}.`;
+    note.classList.toggle('warn', l.fs < READABLE || h > H);
+    note.textContent = h > H ? `${count} Taller than a slide even at the smallest text (${l.fs}). Fold some pages into their sections, or split it into two slides.` : l.fs < READABLE ? `${count} Text is down to ${l.fs}, which is hard to read on a call. Fold some pages into their sections, or split it into two slides.` : `${count} All your words fit, at text size ${l.fs}.`;
+    current = { svg, h };
+  }
+
+  /* ---------- the editor: an outline ---------- */
+  function renderList() {
+    $('list').innerHTML = S.pages.map((p, i) => { const name = esc(p.t || 'this page');
+      return `<li style="padding-left:${p.d * 22}px"><input type="text" data-page="${p.id}" value="${esc(p.t)}" aria-label="Page, level ${p.d + 1}">
+        <select data-mark="${p.id}" aria-label="What happens to ${name}">${Object.keys(MARKS).map(k => `<option value="${k}"${k === p.m ? ' selected' : ''}>${MARKS[k] ? MARKS[k][0] : 'As it is'}</option>`).join('')}</select>
+        <button type="button" data-act="out" data-id="${p.id}" aria-label="Move ${name} out a level" ${p.d > 1 ? '' : 'disabled'}>←</button><button type="button" data-act="in" data-id="${p.id}" aria-label="Move ${name} under the page above" ${i > 1 && p.d <= S.pages[i - 1].d ? '' : 'disabled'}>→</button><button type="button" data-act="up" data-id="${p.id}" aria-label="Move ${name} up" ${canUp(i) ? '' : 'disabled'}>↑</button><button type="button" data-act="down" data-id="${p.id}" aria-label="Move ${name} down" ${canDown(i) ? '' : 'disabled'}>↓</button><button type="button" data-act="add" data-id="${p.id}" aria-label="Add a page below ${name}">+</button><button type="button" data-act="del" data-id="${p.id}" aria-label="Remove ${name}" ${S.pages.length > 1 ? '' : 'disabled'}>×</button></li>`; }).join('');
+  }
+  function chrome() {
+    $('main').className = 'gt-main ' + S.view;
+    document.querySelectorAll('[data-act="view"]').forEach(b => { const on = b.dataset.v === S.view; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r;
+  }
+  function renderAll() {
+    armed = true; $('title').value = S.title; renderList(); chrome(); draw(); save();
+    if (focusId) { const f = document.querySelector(`input[data-page="${focusId}"]`); focusId = null; if (f) f.focus(); }
+  }
+  function addBelow(id) { hist.snap(); const i = at(id), p = S.pages[i], fresh = page('', Math.max(1, p.d)), end = p.d ? i + 1 : 1; S.pages.splice(end, 0, fresh); level(S.pages); focusId = fresh.id; renderAll(); }
+
+  /* one undo step per field: the first keystroke after arriving in it */
+  let armed = true;
+  document.addEventListener('focusin', e => { if (e.target.matches('input,select')) armed = true; });
+  document.addEventListener('input', e => {
+    const t = e.target; if (!t.dataset.page && t.id !== 'title') return;
+    if (armed) { hist.snap(); armed = false; }
+    if (t.id === 'title') S.title = t.value; else S.pages[at(t.dataset.page)].t = t.value;
+    chrome(); draw(); save();
+  });
+  document.addEventListener('change', e => { const t = e.target; if (!t.dataset.mark) return; hist.snap(); S.pages[at(t.dataset.mark)].m = t.value; focusId = null; renderAll(); });
+  $('list').addEventListener('keydown', e => {
+    const t = e.target, id = t.dataset.page; if (!id) return;
+    if (e.key === 'Enter') { e.preventDefault(); addBelow(id); return; }
+    if (e.key === 'Tab') { const i = at(id); if (e.shiftKey ? S.pages[i].d <= 1 : !(i > 1 && S.pages[i].d <= S.pages[i - 1].d)) return; e.preventDefault(); hist.snap(); shift(id, e.shiftKey ? -1 : 1); focusId = id; renderAll(); return; }
+    if (e.key === 'Backspace' && !t.value && S.pages.length > 1) { e.preventDefault(); hist.snap(); const i = at(id); S.pages.splice(i, 1); level(S.pages); focusId = S.pages[Math.max(0, i - 1)].id; renderAll(); }
+  });
+
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Council bins and recycling pages: how they could be';
+    const rows = [['Bins and recycling', 0], ['Your collections', 1], ['Find your collection days', 2, 'new'], ['Calendar to print', 2, 'changed'], ['Christmas changes', 2], ['Report a problem', 1, 'new'], ['Missed bin', 2, 'moved'], ['Damaged or stolen bin', 2, 'moved'], ['Bins', 1], ['What goes in which bin', 2], ['Order a new bin', 2], ['Assisted collections', 2], ['Garden waste', 1], ['Subscribe or renew', 2], ['Rules for garden waste', 2, 'removed'], ['Tips and recycling centres', 1], ['Find a centre', 2], ['Book a visit', 2], ['What each centre takes', 3]];
+    s.pages = rows.map(([t, d, m]) => page(t, d, m || ''));
+    return s;
+  }
+  const outline = () => S.pages.map(p => '  '.repeat(p.d) + p.t + (MARKS[p.m] ? ` (${MARKS[p.m][0].toLowerCase()})` : '')).join('\n');
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, id = b.dataset.id, png = () => window.Slide.pngOf(current.svg, W, current.h), change = fn => { hist.snap(); fn(); renderAll(); };
+    if (act === 'view') { S.view = b.dataset.v; chrome(); draw(); save(); return; }
+    if (act === 'undo') { if (hist.undo()) renderAll(); return; }
+    if (act === 'redo') { if (hist.redo()) renderAll(); return; }
+    if (act === 'add') return addBelow(id);
+    if (act === 'in') return change(() => shift(id, 1));
+    if (act === 'out') return change(() => shift(id, -1));
+    if (act === 'up') return change(() => step(id, -1));
+    if (act === 'down') return change(() => step(id, 1));
+    if (act === 'del') return change(() => { S.pages.splice(at(id), 1); level(S.pages); });
+    if (act === 'png') return window.Slide.copyPicture(png(), 'sitemap.png', say);
+    if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), 'sitemap.png'); } catch (x) { say('That did not work in this browser.'); } return; }
+    if (act === 'outline') { b.closest('details').open = false; return window.Slide.copyText(outline(), say, 'Outline copied.'); }
+    if (act === 'example') { b.closest('details').open = false; return change(() => { S = example(); say('The example is in. Undo brings your work back.'); }); }
+    if (act === 'clear') { b.closest('details').open = false; return change(() => { S = blank(); say('Cleared. Undo brings it back.'); }); }
+    if (act === 'help') return $('helpdlg').showModal();
+    if (act === 'savebox') { $('savecode').value = window.Slide.encode(TAG, S); $('savemsg').textContent = ''; return $('savedlg').showModal(); }
+    if (act === 'savecopy') return window.Slide.copyText($('savecode').value, t => { $('savemsg').textContent = t; });
+    if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
+  });
+  addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+  renderAll();
+})();
+</script>
+</body>
+</html>
