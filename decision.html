@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script src="tool-grid.js"></script>
+<script>
+(function () {
+  const lanes = () => [
+    ['The problem', 'red'],
+    ['What the evidence says', 'blue'],
+    ['Options considered', 'white'],
+    ['What we chose', 'green'],
+    ['The trade-off', 'amber'],
+    ['Riskiest assumption', 'amber'],
+    ['How we test it', 'white'],
+    ['How we will know it worked', 'green'],
+  ].map(([name, tone], i) => ({ id: 'r' + i, name, tone }));
+  const blank = () => ({ title: '', view: 'both', cells: {}, rows: lanes(), cols: ['Decision 1', 'Decision 2', 'Decision 3'].map((name, i) => ({ id: 'c' + i, name })) });
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection: what we chose, and how we will check';
+    s.cols = ['Hearing nothing after reporting', 'Being asked for what the council holds', 'People who cannot use the form'].map((name, i) => ({ id: 'c' + i, name }));
+    const fill = {
+      0: ['People ring to chase a report because they hear nothing for two days', 'The form asks for details the council already has', 'The phone line gives a different answer from the website'],
+      1: ['Four of five calls listened to were chasing a report', 'Three of six people stopped at the bin type', 'Assumption: most phone reports are never entered in the case system'],
+      2: ['Clearer wording on the confirmation\nA text when a crew is booked\nA tracking page', 'Find the bins from the postcode\nExplain the bin types better', 'A separate phone process\nContact centre uses the same form'],
+      3: ['Clearer wording first; tracking only if that is not enough', 'Find the bins from the postcode', 'Contact centre uses the same form'],
+      4: ['Does nothing for a genuine delay', 'Depends on round data being current', 'Staff need time to learn it'],
+      5: ['People will trust a date they are given and not ring anyway', 'Round data is accurate enough to show the right bins', 'Staff can complete the form during a call'],
+      6: ['Two depots for four weeks, compared with two others', 'Check 200 recent reports against round data', 'One week in the contact centre, with people on the phone line'],
+      7: ['Fewer calls chasing a report\nPeople still told about real delays', 'Less time to report\nMore people finishing online', 'The same answer by web, phone or letter'],
+    };
+    Object.keys(fill).forEach(r => fill[r].forEach((t, c) => { if (t) s.cells[`r${r}|c${c}`] = t; }));
+    return s;
+  }
+  window.GridTool({
+    key: 'dt-decision', tag: 'DECISION1', name: 'Decision maker', what: 'decision sheet', kicker: 'DECISIONS',
+    colWord: 'decision', laneWord: 'lane', colName: n => 'Decision ' + n, titleHint: 'The service, and what these decisions are about',
+    blank, example,
+    help: `<ul>
+      <li><b>Decisions</b> run across, one column each. Name each one after the problem it deals with, and put the most important first.</li>
+      <li><b>Lanes</b> run down, from the problem to how you will know it worked. Type one note per line in a cell, and each line becomes its own note on the slide.</li>
+      <li><b>Say what you know.</b> Where something is not yet evidence, write “Assumption:” in front of it, so the difference still shows when the slide is printed.</li>
+      <li><b>On slide</b> shows or hides a lane, so you can keep notes that do not go on the slide.</li>
+      <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+      <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+    </ul>`,
+  });
+})();
+</script>
+</body>
+</html>

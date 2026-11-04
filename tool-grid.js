@@ -1,7 +1,7 @@
-/* The grid behind the Blueprint maker and the Plan maker: columns across, lanes down, one note per
+/* The grid behind the Blueprint, Plan and Decision makers: columns across, lanes down, one note per
    line typed into a cell. The slide is drawn from that. Text is never cut: the size comes down until
    everything fits, and the tool says so when it gets too small to read on a call.
-   GridTool({key, tag, name, what, kicker, colWord, laneWord, titleHint, blank(), example(), help}) */
+   GridTool({key, tag, name, what, kicker, colWord, laneWord, titleHint, blank(), example(), help, tidy(s)}) */
 window.GridTool = function (cfg) {
   const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
   const W = 1920, H = 1080, M = 56, LAB = 200, READABLE = 18, BIG = 26, SMALL = 14;
@@ -10,6 +10,7 @@ window.GridTool = function (cfg) {
   function tidy(s) {
     if (!s || !Array.isArray(s.cols) || !Array.isArray(s.rows)) return null;
     s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both';
+    if (cfg.tidy) cfg.tidy(s);
     return s;
   }
   let S = tidy(window.Slide.load(cfg.key)) || cfg.blank();
