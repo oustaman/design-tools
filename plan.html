@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script src="tool-grid.js"></script>
+<script>
+(function () {
+  const lanes = () => [
+    ['What we do', 'blue'],
+    ['What we need to learn', 'amber'],
+    ['How we test it', 'white'],
+    ['Outcome for users', 'green'],
+    ['Outcome for the organisation', 'green'],
+    ['How we measure it', 'white'],
+    ['Risks and dependencies', 'red'],
+  ].map(([name, tone], i) => ({ id: 'r' + i, name, tone }));
+  const blank = () => ({ title: '', view: 'both', cells: {}, rows: lanes(), cols: ['Now', 'Next', 'Later'].map((name, i) => ({ id: 'c' + i, name })) });
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection: what happens when';
+    const fill = {
+      0: ['Shadow the contact centre\nMap the current service', 'Prototype the shorter form\nJoin the form to the round data', 'Roll out to all rounds\nRetire the old form'],
+      1: ['Why people call instead of using the form', 'Whether crews can act on reports the same day', 'What it costs to keep running'],
+      2: ['Five calls listened to\nThree depot visits', 'Usability tests, including assistive technology users\nOne depot pilot', 'Compare pilot and non-pilot rounds'],
+      3: ['A clear account of what goes wrong', 'People report once and know what happens next', 'The same answer by web, phone or letter'],
+      4: ['Agreement on the problem', 'Reports reach the depot the same day', 'Fewer calls chasing a report'],
+      5: ['Calls per week, by reason', 'Time to report\nShare who finish online', 'Share collected within two days'],
+      6: ['Depots may not have time to meet us', 'Round data may not be current', 'Contract change for in-cab devices'],
+    };
+    Object.keys(fill).forEach(r => fill[r].forEach((t, c) => { if (t) s.cells[`r${r}|c${c}`] = t; }));
+    return s;
+  }
+  window.GridTool({
+    key: 'dt-plan', tag: 'PLAN1', name: 'Plan maker', what: 'plan', kicker: 'PLAN',
+    colWord: 'phase', laneWord: 'lane', colName: n => 'Phase ' + n, titleHint: 'What this plan gets done',
+    blank, example,
+    help: `<ul>
+      <li><b>Phases</b> run across. Rename them to suit: Now, Next, Later, or Discovery, Alpha, Beta, Live.</li>
+      <li><b>Lanes</b> run down. Type one note per line in a cell, and each line becomes its own note on the slide.</li>
+      <li><b>On slide</b> shows or hides a lane, so you can keep notes that do not go on the slide.</li>
+      <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+      <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+    </ul>`,
+  });
+})();
+</script>
+</body>
+</html>

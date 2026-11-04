@@ -1,0 +1,94 @@
+/* The shell both making tools share (Flow maker, Screen maker): one screen, no page scroll. A slim
+   bar, panels that scroll inside themselves, and a canvas that zooms and pans. */
+:root{
+  --bg:#F5F4F2; --surface:#FFFFFF; --surface-2:#EDEBE8;
+  --ink:#1A1618; --ink-2:#514B4A; --ink-3:#4D4847;
+  --line:#DFDBD7; --line-2:#8E8685;
+  --lec:#8C2437; --lec-soft:#F6E8EA;
+  --wsh:#1A526D; --wsh-soft:#E4EEF3;
+  --ok:#285638; --ok-soft:#E3EFE7;
+  --warn:#684604; --warn-soft:#F4EAD3;
+  --stage:#F3F1EE; --dot:#B7B0AB;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;background:var(--bg)}
+body{margin:0;color:var(--ink);font-family:var(--sans);line-height:1.4;overflow:hidden;display:flex;flex-direction:column}
+a{color:var(--lec)}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--lec);outline-offset:1px}
+/* inside rounded groups the ring would be clipped, so it sits inside the button */
+.seg button:focus-visible,.zoom button:focus-visible{outline:none;box-shadow:inset 0 0 0 2px #fff,inset 0 0 0 4px var(--lec)}
+::placeholder{color:#6B6463;opacity:1}
+[hidden]{display:none!important}
+
+/* the bar */
+.tb-bar{flex:none;display:flex;align-items:center;gap:6px;min-height:48px;padding:6px 10px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;position:relative;z-index:30}
+.tb-back{font-size:0.82rem;color:var(--ink-2);text-decoration:none;padding:6px 8px;border-radius:6px;white-space:nowrap}
+.tb-back:hover{background:var(--surface-2);color:var(--ink)}
+.tb-name{font-size:0.95rem;font-weight:700;letter-spacing:-0.01em;margin:0 8px 0 2px;white-space:nowrap}
+.tb-sp{flex:1}
+.tbtn{font:inherit;font-size:0.82rem;font-weight:600;min-height:34px;padding:0 11px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.tbtn:hover:not(:disabled){border-color:var(--lec);color:var(--lec)}
+.tbtn:disabled{opacity:.45;cursor:default}
+.tbtn.pri{background:var(--lec);border-color:var(--lec);color:#fff}
+.tbtn.pri:hover:not(:disabled){color:#fff;filter:brightness(1.1)}
+.tbtn.xs{min-height:28px;font-size:0.76rem;padding:0 8px;border-radius:6px}
+.tbtn.ic{width:34px;padding:0}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden;flex:none}
+.seg button{font:inherit;font-size:0.82rem;font-weight:600;min-height:32px;padding:0 11px;border:0;background:var(--surface);color:var(--ink);cursor:pointer}
+.seg button + button{border-left:1px solid var(--line-2)}
+.seg button.on,.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.menu{position:relative}
+.menu > summary{list-style:none} .menu > summary::-webkit-details-marker{display:none}
+.menu-in{position:absolute;right:0;top:calc(100% + 5px);width:240px;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:5px;box-shadow:0 8px 28px rgba(0,0,0,.2);z-index:40}
+.menu-in button{display:block;width:100%;text-align:left;font:inherit;font-size:0.84rem;padding:8px 9px;border:0;border-radius:6px;background:none;color:var(--ink);cursor:pointer}
+.menu-in button:hover{background:var(--surface-2)}
+
+/* the working area */
+.tool{flex:1;min-height:0;display:grid;align-items:stretch}
+.pane{min-height:0;min-width:0;background:var(--surface);display:flex;flex-direction:column}
+.pane.l{border-right:1px solid var(--line)} .pane.r{border-left:1px solid var(--line)}
+.pane-s{overflow-y:auto;min-height:0;flex:1;padding:10px 12px}
+.h{font-family:var(--mono);font-size:0.64rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
+.pane input:not([type=checkbox]),.pane select,dialog input:not([type=checkbox]){font:inherit;font-size:0.86rem;width:100%;padding:6px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0}
+.pane label,dialog label{display:block;font-size:0.76rem;font-weight:640;margin:8px 0 2px}
+
+/* the canvas */
+.stage{position:relative;overflow:hidden;min-width:0;min-height:0;background-color:var(--stage);background-image:radial-gradient(circle,var(--dot) var(--dr,1.3px),transparent calc(var(--dr,1.3px) + .4px));background-size:22px 22px;cursor:default;touch-action:none;overscroll-behavior:none}
+.stage.panning,.stage.spacey{cursor:grab} .stage.panning{cursor:grabbing}
+.world{position:absolute;left:0;top:0;transform-origin:0 0;width:max-content}
+.st-bar{position:absolute;left:8px;right:8px;bottom:8px;display:flex;align-items:center;gap:10px;pointer-events:none;z-index:12}
+.st-bar > *{pointer-events:auto}
+.st-info{font-size:0.76rem;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 9px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
+.st-info b{color:var(--ink);font-weight:600} .st-info .mono{font-family:var(--mono);font-size:0.7rem}
+.zoom{margin-left:auto;display:inline-flex;align-items:center;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;overflow:hidden;flex:none}
+.zoom button{font:inherit;font-size:0.8rem;font-weight:600;min-width:32px;height:32px;padding:0 8px;border:0;background:none;color:var(--ink);cursor:pointer}
+.zoom button:hover{background:var(--surface-2)}
+.zoom button + button{border-left:1px solid var(--line)}
+.zoom output{display:inline-block;min-width:50px;text-align:center;font-size:0.78rem;font-variant-numeric:tabular-nums;border-left:1px solid var(--line);line-height:32px}
+.t-msg{position:absolute;left:50%;bottom:50px;transform:translateX(-50%);max-width:min(560px,88%);font-size:0.84rem;color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn);border-radius:9px;padding:8px 12px;z-index:13}
+.t-msg:empty{display:none}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* dialogs */
+dialog.dlg{border:1px solid var(--line-2);border-radius:12px;padding:18px 20px;background:var(--surface);color:var(--ink);max-width:min(460px,94vw);max-height:90vh}
+dialog.dlg::backdrop{background:rgba(0,0,0,.35)}
+dialog.dlg h2{margin:0 0 8px;font-size:1.1rem}
+dialog.dlg p,dialog.dlg li{font-size:0.9rem;color:var(--ink-2)}
+dialog.dlg p{margin:0 0 10px} dialog.dlg ul,dialog.dlg ol{margin:0 0 10px;padding-left:1.2em} dialog.dlg li{margin-bottom:5px} dialog.dlg b{color:var(--ink)}
+.dlg-acts{display:flex;justify-content:flex-end;gap:6px;margin-top:6px;flex-wrap:wrap}
+
+/* small screens: the tool stops being one screen and stacks */
+@media(max-width:900px){
+  html,body{height:auto} body{overflow:auto;display:block}
+  .tool{display:block} .stage{height:72vh} .pane{border:0;border-top:1px solid var(--line)} .pane-s{overflow:visible}
+}
+@media print{ html,body{height:auto;overflow:visible;display:block;background:#fff} }
+
+/* the first look round */
+.tt-ring{position:fixed;z-index:70;border:3px solid #1A526D;border-radius:9px;pointer-events:none;box-shadow:0 0 0 3px rgba(255,255,255,.75)}
+.tt-card{position:fixed;z-index:71;width:290px;background:var(--surface);border:1px solid var(--line-2);border-radius:11px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.22);font-size:0.86rem;line-height:1.4;color:var(--ink)}
+.tt-card p{margin:0 0 10px}
+.tt-row{display:flex;align-items:center;gap:6px} .tt-row span{margin-right:auto;font-size:0.76rem;color:var(--ink-2)}

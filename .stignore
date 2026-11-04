@@ -1,0 +1,9 @@
+# >>> PBS managed — do not edit inside this block >>>
+node_modules
+dist
+.astro
+.DS_Store
+*.bak
+__pycache__
+.venv
+# <<< PBS managed <<<

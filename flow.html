@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css?v=202611030854">
+<style>
+  /* the Flow maker: the slide on a canvas, and on the right the steps that draw it */
+  .tool{grid-template-columns:minmax(0,1fr) 372px;grid-template-rows:minmax(0,1fr)}
+  .mid{display:flex;flex-direction:column;min-width:0;min-height:0} .mid .stage{flex:1}
+  @media(max-width:1180px){ .tool{grid-template-columns:minmax(0,1fr) 320px} }
+  .fm-head{flex:none;padding:10px 12px 0}
+  .fm-tabs{display:flex;gap:2px;margin-top:10px;border-bottom:1px solid var(--line-2)}
+  .fm-tabs button{flex:1;font:inherit;font-size:0.84rem;font-weight:650;border:1px solid transparent;border-bottom:0;border-radius:7px 7px 0 0;background:none;color:var(--ink-2);padding:8px 4px;cursor:pointer;white-space:nowrap}
+  .fm-tabs button:hover{color:var(--ink)}
+  .fm-tabs button[aria-selected="true"]{background:#fff;border-color:var(--line-2);color:var(--ink);margin-bottom:-1px}
+  .fm-how{margin:0 0 9px;color:var(--ink-2);font-size:0.82rem;line-height:1.4} .fm-how b{color:var(--ink)}
+  .fm-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .fm-row{border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+  .fm-row:hover{border-color:var(--line-2)}
+  .fm-row.sel{border-color:#1A526D;box-shadow:0 0 0 1px #1A526D;cursor:default;background:#F2F7FA}
+  /* the one setting that belongs to what was clicked on the diagram */
+  .pane .fm-row .lit,.pane .lit{outline:3px solid #1A526D;outline-offset:1px;background:#DCEBF3;border-radius:6px}
+  .fm-row.bad .fm-n{color:#B3261E}
+  .fm-row.k-wait{border-style:dashed}
+  .fm-top{display:flex;align-items:center;gap:6px;padding:4px 6px}
+  .fm-n{flex:none;width:24px;height:24px;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:0.76rem;color:var(--ink-2);border:1.5px solid var(--line-2);border-radius:5px;background:#fff}
+  .k-q .fm-n{transform:rotate(45deg);width:20px;height:20px;margin:2px;border-color:#8A6100;background:#FFF4D6} .k-q .fm-n > i{transform:rotate(-45deg);font-style:normal}
+  .k-wait .fm-n{border-radius:99px;border-style:dashed}
+  .bad .fm-n{border-color:#B3261E;background:#FCEAE8}
+  .pane .fm-t{border-color:transparent;background:none;padding:4px 5px;flex:1;font-weight:500}
+  .pane .fm-t:hover{border-color:var(--line)} .pane .fm-t:focus{border-color:var(--line-2);background:#fff;font-weight:400}
+  .fm-mark{flex:none;font-size:0.72rem;font-weight:700;color:#B3261E}
+  .fm-det{display:none;padding:2px 10px 10px 36px} .fm-row.sel .fm-det{display:grid;gap:9px}
+  .fm-f{display:grid;gap:3px}
+  .fm-f > label,.fm-f > .lb{margin:0;font-size:0.74rem;font-weight:640;color:var(--ink);display:block}
+  .kseg{display:grid;grid-template-columns:repeat(4,auto);border:1px solid var(--line-2);border-radius:7px;overflow:hidden}
+  .kseg button{font:inherit;font-size:0.78rem;font-weight:600;min-height:30px;border:0;background:#fff;color:var(--ink);cursor:pointer;padding:0 4px}
+  .kseg button + button{border-left:1px solid var(--line-2)}
+  .kseg button.on{background:var(--ink);color:#fff}
+  .kseg button:focus-visible{outline:none;box-shadow:inset 0 0 0 2px #fff,inset 0 0 0 4px var(--lec)}
+  .sbtn{font:inherit;font-size:0.8rem;font-weight:600;min-height:32px;padding:0 10px;border-radius:7px;border:1px solid var(--line-2);background:#fff;color:var(--ink);cursor:pointer;text-align:left}
+  .sbtn:hover:not(:disabled){border-color:var(--lec);color:var(--lec)} .sbtn:disabled{opacity:.4;cursor:default}
+  .sbtn.stk.on{background:#FCEAE8;border-color:#B3261E;color:#B3261E}
+  .fm-tools{display:flex;gap:4px;flex-wrap:wrap} .fm-tools .sp{flex:1}
+  .chips{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .chip{font:600 0.74rem var(--mono);min-width:28px;min-height:26px;padding:0 6px;border-radius:99px;border:1px solid var(--line-2);background:#fff;color:var(--ink);cursor:pointer}
+  .chip.on{background:var(--wsh);border-color:var(--wsh);color:#fff}
+  .new{font-style:normal;font-size:0.74rem;font-weight:700;color:var(--ok)}
+  .fm-add{display:flex;gap:6px;margin-top:6px}
+  .fm-add .tbtn{flex:1}
+  .fm-empty{list-style:none;color:var(--ink-2);font-size:0.86rem;padding:14px 12px;border:1px dashed var(--line-2);border-radius:9px;text-align:center}
+  .fm-empty .tbtn{margin-top:8px}
+  .linkish{font:inherit;background:none;border:0;padding:0;color:var(--lec);text-decoration:underline;cursor:pointer}
+  /* the table: filled in as the flow is built, ready to paste */
+  #dock{flex:none;height:42%;min-height:190px;display:flex;flex-direction:column;background:var(--surface);border-top:2px solid var(--line-2)}
+  #dock[hidden]{display:none}
+  .dock-h{flex:none;display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line)} .dock-h h2{margin:0;font-size:0.88rem} .dock-h .sp{flex:1} .dock-h span{font-size:0.78rem;color:var(--ink-2)}
+  .dock-s{overflow:auto;min-height:0;flex:1;padding:0 12px 10px}
+  .d2t{width:100%;border-collapse:collapse;font-size:0.82rem;line-height:1.3}
+  .d2t th{position:sticky;top:0;background:var(--surface);text-align:left;font-size:0.74rem;padding:7px 8px 5px 0;border-bottom:1.5px solid var(--ink);z-index:1;white-space:nowrap}
+  .d2t td{padding:4px 8px 4px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+  .d2t tr[data-id]{cursor:pointer} .d2t tr.sel td{background:#E9F2F7}
+  .d2t input{font:inherit;width:100%;min-width:220px;padding:4px 7px;border:1px solid var(--line-2);border-radius:5px;background:#fff;color:var(--ink)}
+  .d2t input.lit{outline:3px solid #1A526D;outline-offset:1px;background:#DCEBF3}
+  .d2t tfoot td{font-weight:650;border-bottom:0;padding-top:8px}
+  .fm-note{width:100%;font:inherit;font-size:0.84rem;line-height:1.35;padding:6px 8px;border:1px solid var(--line-2);border-radius:6px;background:#fff;color:var(--ink);resize:vertical}
+  .swatches{display:flex;gap:6px;flex-wrap:wrap}
+  .sw{width:28px;height:28px;border-radius:7px;border:2px solid;cursor:pointer;padding:0}
+  .sw.on{box-shadow:0 0 0 2px #fff,0 0 0 4px #1A1618}
+  .ans{display:grid;grid-template-columns:minmax(0,76px) minmax(0,1fr) 28px;gap:4px;align-items:center}
+  .ans .tbtn{padding:0}
+  .fm-more summary{cursor:pointer;font-size:0.76rem;color:var(--ink-2);min-height:24px;display:flex;align-items:center}
+  .fm-more[open] summary{margin-bottom:6px} .fm-more .fm-f{margin-bottom:8px}
+  .fm-chk{display:flex!important;gap:7px;align-items:center;font-weight:500!important;min-height:24px;margin:0!important;font-size:0.8rem!important} .fm-chk input{width:18px!important;height:18px;flex:none}
+  .shapes-dlg{width:min(460px,92vw)}
+  .shapes{list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:12px 18px}
+  .shapes li{display:flex;align-items:center;gap:10px;font-size:0.84rem;line-height:1.2;min-width:0}
+  .shapes svg{flex:none;width:76px;height:44px;display:block}
+  dialog textarea{width:100%;font:0.76rem/1.45 var(--mono);padding:7px 9px;border:1px solid var(--line-2);border-radius:6px;background:#fff;color:var(--ink);resize:vertical;word-break:break-all}
+  .fate{font-size:0.74rem;font-weight:700;border-radius:99px;padding:1px 8px;display:inline-block}
+  .fate.kept,.fate.changed,.fate.new{background:var(--ok-soft);color:var(--ok)} .fate.merged,.fate.moved{background:var(--wsh-soft);color:var(--wsh)}
+  .fate.removed{background:var(--surface-2);color:var(--ink-3);text-decoration:line-through}
+  .fm-panel{display:flex;flex-direction:column;min-height:0;flex:1}
+  #slide{width:1920px;height:1080px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.18);line-height:0}
+  #slide svg{display:block;width:100%;height:100%;-webkit-user-select:none;user-select:none}
+  #slide [data-edge]{cursor:pointer} #slide [data-edge]:hover path:nth-child(2){stroke:#1A526D;stroke-width:4}
+  #slide [data-goal],#slide [data-legend],#slide [data-edge] text{cursor:text}
+  #slide g[data-step].dragging{opacity:.75;cursor:grabbing}
+  #slide g[data-step]{cursor:pointer;outline:none}
+  #slide g[data-step] text{cursor:text}
+  #slide g[data-step]:hover > rect:first-child,#slide g[data-step]:hover > polygon:first-child{stroke:#1A526D;stroke-width:3.5}
+  #slide g.sel > rect:first-child,#slide g.sel > polygon:first-child{stroke:#1A526D;stroke-width:6;filter:drop-shadow(0 0 12px rgba(26,82,109,.65))}
+  #slide g[data-step]:focus-visible > rect:first-child,#slide g[data-step]:focus-visible > polygon:first-child{stroke:#1A526D;stroke-width:6}
+  #slide{position:relative}
+  #inl{position:absolute;z-index:3;resize:none;overflow:hidden;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-weight:600;line-height:1.25;text-align:center;color:#1A1618;background:#fff;border:3px solid #1A526D;border-radius:8px;padding:4px 6px;outline:none;box-shadow:0 2px 12px rgba(26,82,109,.3)}
+</style>
+</head>
+<body>
+
+<header class="tb-bar">
+  <a class="tb-back" href="index.html">← All tools</a>
+  <h1 class="tb-name">Flow maker</h1>
+  <span class="tb-sp"></span>
+  <button type="button" class="tbtn" data-act="undo" id="undo" title="Undo (Ctrl or ⌘ Z)">Undo</button>
+  <button type="button" class="tbtn" data-act="redo" id="redo" title="Redo (Ctrl or ⌘ Shift Z)">Redo</button>
+  <button type="button" class="tbtn" data-act="savebox" aria-haspopup="dialog">Save</button>
+  <button type="button" class="tbtn pri" data-act="png" id="dl">Copy this slide</button>
+  <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
+    <button type="button" data-act="a2">Copy both lists as text</button>
+    <button type="button" data-act="d2">Copy the table</button>
+    <button type="button" data-act="example">See the example: one line</button>
+    <button type="button" data-act="example2">See the example: with branches</button>
+    <button type="button" data-act="seed" id="reseed">Copy “now” into my version again</button>
+    <button type="button" data-act="clear">Start again</button>
+  </div></details>
+  <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
+  <button type="button" class="tbtn" data-act="tour">Walkthrough</button>
+  <button type="button" class="tbtn ic" data-act="shapes" aria-haspopup="dialog" aria-label="What the shapes mean" title="What the shapes mean">?</button>
+</header>
+
+<div class="tool">
+  <div class="mid">
+  <main class="stage" id="stage" aria-label="The slide">
+    <div class="world" id="world"><div id="slide" role="group" aria-label="The slide, drawn from your steps. Click anything to change it."></div><textarea id="inl" hidden rows="1" spellcheck="true" aria-label="Edit these words"></textarea></div>
+    <p class="t-msg" id="msg" role="status"></p>
+    <div class="st-bar">
+      <span class="st-info" id="tally"></span>
+      <span class="tb-sp" style="flex:1"></span><button type="button" class="tbtn xs" data-act="tidy" id="tidy" title="Put every box back in its automatic place">Tidy up</button><button type="button" class="tbtn xs" data-act="dock" id="dockb" aria-expanded="false" aria-controls="dock">Table</button>
+      <span class="zoom" role="group" aria-label="Zoom"><button type="button" data-act="zout" aria-label="Zoom out">−</button><output id="zlabel">100%</output><button type="button" data-act="zin" aria-label="Zoom in">+</button><button type="button" data-act="fit" title="Fit the slide (Ctrl or ⌘ 0)">Fit</button></span>
+    </div>
+  </main>
+  <section id="dock" aria-label="What happened to every step" hidden>
+    <div class="dock-h"><h2>What happened to every step</h2><span id="d2n"></span><span class="sp"></span><button type="button" class="tbtn xs" data-act="d2pic" title="Use this if the table does not paste properly">Copy as a picture</button><button type="button" class="tbtn xs pri" data-act="d2">Copy the table</button><button type="button" class="tbtn xs ic" data-act="dock" aria-label="Close the table" title="Close">✕</button></div>
+    <div class="dock-s" id="d2"></div>
+  </section>
+  </div>
+
+  <aside class="pane r" aria-label="Your steps" id="steps">
+    <div class="fm-head">
+      <label for="goal" style="margin-top:0">What is the person trying to get done?</label><input id="goal" placeholder="e.g. Report a missed bin collection">
+      <div class="fm-tabs" role="tablist" aria-label="Steps">
+        <button type="button" role="tab" data-tab="before" id="t-before" aria-controls="p-before">Now</button>
+        <button type="button" role="tab" data-tab="after" id="t-after" aria-controls="p-after">Your version</button>
+        <button type="button" role="tab" data-tab="d2" id="t-d2" aria-controls="p-d2">What happened</button>
+      </div>
+    </div>
+    <section class="fm-panel" role="tabpanel" id="p-before" aria-labelledby="t-before">
+      <div class="pane-s"><p class="fm-how">Everything the person does or waits for, in their order. Mark where they get stuck. <b>Click anything on the diagram to change it.</b></p><ol class="fm-list" id="l-before"></ol>
+        <div class="fm-add"><button type="button" class="tbtn" data-act="add" data-side="before">+ Add a step</button><button type="button" class="tbtn" data-act="add" data-side="before" data-k="wait">+ Add a wait</button></div></div>
+    </section>
+    <section class="fm-panel" role="tabpanel" id="p-after" aria-labelledby="t-after" hidden>
+      <div class="pane-s"><p class="fm-how" id="afterhow"></p><ol class="fm-list" id="l-after"></ol>
+        <div class="fm-add"><button type="button" class="tbtn" data-act="add" data-side="after">+ Add a screen</button><button type="button" class="tbtn" data-act="add" data-side="after" data-k="wait">+ Add a wait</button></div></div>
+    </section>
+    <section class="fm-panel" role="tabpanel" id="p-d2" aria-labelledby="t-d2" hidden>
+      <div class="pane-s"><p class="fm-how">The table below follows your flow: every step from <i>now</i>, where it went and what happened to it. You write the <b>why</b>, then copy the table into your slides.</p>
+        <p><button type="button" class="tbtn pri" data-act="d2">Copy the table</button></p>
+        <div class="fm-f"><label for="d2note">Anything else to say (optional)</label><textarea class="fm-note" id="d2note" rows="3" placeholder="It goes under the table when you copy it"></textarea></div></div>
+    </section>
+  </aside>
+</div>
+
+<dialog class="dlg shapes-dlg" id="shapesdlg" aria-labelledby="shapesdlg-h"><form method="dialog">
+  <h2 id="shapesdlg-h">The shapes</h2>
+  <ul class="shapes" id="shapes"></ul>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Close</button></div>
+</form></dialog>
+
+<dialog class="dlg" id="savedlg" aria-labelledby="savedlg-h"><form method="dialog">
+  <h2 id="savedlg-h">Save your work as text</h2>
+  <p>Your flow stays in this browser. Copy this text and keep it anywhere, like a note or an email to yourself.</p>
+  <textarea id="savecode" rows="4" readonly aria-label="Your work, as text"></textarea>
+  <p><button type="button" class="tbtn xs pri" data-act="savecopy">Copy the text</button></p>
+  <p><label for="loadcode"><b>Carrying on?</b> Paste your saved text here.</label></p>
+  <textarea id="loadcode" rows="3" spellcheck="false" placeholder="FLOW1…"></textarea>
+  <p><button type="button" class="tbtn xs" data-act="loadcode">Bring it back</button></p>
+  <p class="fm-how" id="savemsg" role="status"></p>
+  <div class="dlg-acts"><button class="tbtn" value="close">Close</button></div>
+</form></dialog>
+
+<dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog">
+  <h2 id="helpdlg-h">How it works</h2>
+  <ul>
+    <li><b>Now:</b> one row for everything a person does or waits for, in order. Press <b>✗</b> wherever people go wrong, and say why. Those are the problems your version has to fix.</li>
+    <li><b>A question</b> is for when the answer changes where people go next. Give each answer a name and say where it goes. <b>A new box</b> puts one under the question, and arrows can join up again later.</li>
+    <li><b>Colours</b> mean whatever you say they mean. Pick one, say what it means, and it joins the key on the slide.</li>
+    <li><b>Move a box</b> by dragging it. The arrows follow.</li>
+    <li><b>Your version:</b> press <b>Start from my “now”</b> for a copy to change. Remove, merge, move and rename steps, and add screens. Each step shows which steps from <i>now</i> it came from.</li>
+    <li><b>What happened:</b> the tool labels every old step kept, merged, moved or removed, in a table you can copy. You write why.</li>
+    <li><b>The diagram follows the tab,</b> and it is what you copy. Click any box, diamond, arrow or line of words: its setting lights up on the right, and if it is words you can type straight away. Scroll to move around, pinch or Ctrl/⌘ and scroll to zoom.</li>
+    <li><b>Prefer paper?</b> Boxes and arrows, left to right, photographed into your slides.</li>
+  </ul>
+  <p>Your work stays in this browser, on this computer: press <b>Save</b> to keep it as text and carry on anywhere. New to flows? <a href="https://oustaman.github.io/mmu-tools/modules/sd/flow-guide.html">How flows work</a> has every option, with real examples.</p>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div>
+</form></dialog>
+
+<script src="flow-draw.js?v=202611030854"></script>
+<script src="tool-tour.js?v=202611030854"></script>
+<script src="tool-canvas.js?v=202611030854"></script>
+<script>
+(function () {
+  /* The Flow maker. List the journey as it is now, then build a new version FROM it: start
+     from a copy, then remove, merge, move, rename and add screens. Every step now ends up kept,
+     merged, moved or removed; the drawing is a 16:9 slide. Nothing to learn but the buttons. */
+  const $ = id => document.getElementById(id);
+  const { esc, nums, counts, fatesOf, COL, graph, cellsOf, PAL, migrate, DEFS, FONT, wrap: FD_wrap, clip: FD_clip } = window.FD;
+  const fates = () => fatesOf(S.before, S.after);
+  const KEY = 'dt-flow';
+  let uid = 1; const nid = p => p + (uid++) + '-' + Date.now().toString(36);
+
+  /* the example is the missed-bin case (case-missed-bin.html): its "now" screens, and its
+     "What happened to every step" table — nothing added that the case does not say */
+  const EXAMPLE = () => {
+    const B = [
+      ['b1', 'Read the missed bin information page', 'website', 'step', true, '199 words, 2.6 phone screens, before you can start'],
+      ['b2', 'Choose your bin, and its type', 'form', 'step', true, 'Colours on the page, categories on the form'],
+      ['b3', 'Name, email and phone', 'form'],
+      ['b4', 'Postcode and address', 'form'],
+      ['b5', 'Additional information', 'form'],
+      ['b6', 'Assisted collection', 'form'],
+      ['b7', 'Summary', 'form'],
+      ['b8', 'Finish', 'form', 'step', true, 'Never checks the 2pm deadline, so it cannot say you are too late'],
+    ].map(([id, t, w, k, bad, note, ifnot, go, back]) => ({ id, t, w: w || '', k: k || 'step', bad: !!bad, note: note || '', ifnot: ifnot || '', go: go || 'stuck', back: back || '' }));
+    const A = [
+      ['a1', 'Start: the one rule, in 38 words', 'start page', ['b1']],
+      ['a2', 'Your postcode and address', 'form', ['b4']],
+      ['a3', 'Which bin was not emptied?', 'by colour', ['b2']],
+      ['a4', 'How should we update you? (optional)', 'form', ['b3']],
+      ['a5', 'Check your answers', 'with Change links', ['b7']],
+      ['a6', 'Report sent', 'date and reference', ['b8']],
+    ].map(([id, t, w, from, k]) => ({ id, t, w, from, k: k || 'step', bad: false, note: '', ifnot: '', go: 'stuck', back: '' }));
+    return { goal: 'Report a missed bin collection', before: B, after: A, view: 'both', tab: 'before',
+      why: { b1: 'Only the deadline decides whether reporting is any use; the other rules are one link away',
+        b2: 'The address tells the council which bins are due and what kind they are', b3: 'Nothing in emptying a bin needs a name; one way to send an update is enough',
+        b4: 'Everything else follows from it', b5: 'Rarely needed; if the council wants it, it returns as an optional box on the bin screen',
+        b6: 'Arranged with the council, so already on file for the address', b7: 'Fixing a mistake should not mean starting again',
+        b8: 'The button says what it does, and the next screen says what happens' } };
+  };
+  /* the council tax example: its boxes,
+     its branches and its reasons, in the places its flow puts them */
+  const COUNCIL = () => {
+    const st = (id, t, more) => ({ id, t, w: '', k: 'step', bad: false, note: '', from: [], ...more });
+    const B = ['Find the page', 'Create account', 'Account number', '‘Class N’ list', 'Residents x N', 'Upload per person', 'Declaration'].map((t, i) => st('c' + (i + 1), t));
+    const A = [
+      st('s', 'Search', { k: 'end', p: { c: 0, r: 0 } }),
+      st('n1', 'Start', { w: 'all students?', c: 'blue', from: ['c1', 'c4'], p: { c: 1, r: 0 } }),
+      st('q1', 'Everyone?', { k: 'q', off: true, aside: 'Not sure → talk to a person', ans: [{ t: 'yes', to: '' }, { t: 'no', to: 'other' }], p: { c: 2, r: 0 } }),
+      st('n2', 'Your home', { w: 'address + people', c: 'blue', from: ['c5'], p: { c: 3, r: 0 } }),
+      st('n3', 'Proof', { w: 'declaration + send', c: 'blue', from: ['c6', 'c7'], p: { c: 4, r: 0 } }),
+      st('q2', 'Which?', { k: 'q', off: true, ans: [{ t: 'upload', to: '' }, { t: 'university', to: 'uni' }], p: { c: 4, r: 1 } }),
+      st('up', 'Upload', { w: 'certificate', off: true, p: { c: 3, r: 1 } }),
+      st('n4', 'Sent', { w: 'reference CT-…', c: 'green', from: ['c7'], p: { c: 4, r: 2 } }),
+      st('uni', 'University', { w: 'confirms', off: true, br: true, to: 'n4', p: { c: 5, r: 1 } }),
+      st('other', 'Other discounts', { w: '25% single person…', off: true, br: true, p: { c: 2, r: 1 } }),
+    ];
+    return { goal: 'A house where everyone studies full time stops being billed', before: B, after: A, tab: 'after', view: 'after',
+      legend: { blue: 'My screens', green: 'Finished' },
+      d2note: 'My wireframe 4, check your answers: removed, it felt like repetition.\nNot everyone a student → other discounts, so nobody leaves with nothing.',
+      why: { c1: 'one question replaces 14 exemptions', c2: 'a save link by email does the same job', c3: 'students have no bill yet; the address finds it', c4: 'the question IS Class N, in plain words', c5: 'one screen, the list grows in place', c6: 'the law requires proof; the university can now supply it', c7: 'into the send step' } };
+  };
+  const EMPTY = () => ({ goal: '', before: [], after: [], why: {}, view: 'before', tab: 'before', legend: {}, d2note: '' });
+  /* whatever arrives, from this browser or a saved text, gets the fields this version expects */
+  const tidyState = x => { if (!x || !Array.isArray(x.before) || !Array.isArray(x.after)) return null; migrate(x.before); migrate(x.after);
+    return { ...EMPTY(), ...x, why: x.why || {}, legend: x.legend || {} }; };
+  let S; try { S = tidyState(JSON.parse(localStorage.getItem(KEY) || 'null')); } catch (e) {}
+  if (!S) S = EMPTY();
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+  /* numbers: waits are not steps, so they carry no number */
+  /* ---------- the editors ---------- */
+  let selId = null, view = null;
+  const nameIn = (y, N) => { const t = `${N[y.id] ? N[y.id] + '. ' : ''}${y.t || '(no words yet)'}`; return t.length > 34 ? t.slice(0, 33) + '…' : t; };
+  /* where an arrow can go: the next step, another box, a new box under this one, or nowhere */
+  function goOpts(list, x, val, N, ans) {
+    const others = list.filter(y => y.id !== x.id && y.k !== undefined).map(y => `<option value="${esc(y.id)}"${val === y.id ? ' selected' : ''}>${esc(nameIn(y, N))}</option>`).join('');
+    const first = ans === 0 || (ans == null && !x.br) ? 'The next step' : ans == null ? 'It ends here' : 'Not decided yet';
+    return `<option value="">${first}</option>${ans == null && !x.br ? `<option value="@none"${val === '@none' ? ' selected' : ''}>It ends here</option>` : ''}${ans != null ? `<option value="@stuck"${val === '@stuck' ? ' selected' : ''}>They are stuck</option>` : ''}<option value="@new">A new box</option><optgroup label="Another box">${others}</optgroup>`;
+  }
+  function rowHTML(x, i, list, side, N) {
+    const num = x.k === 'wait' ? '⏱' : x.k === 'end' ? '◯' : N[x.id] || '·', u = x.id, q = x.k === 'q', step = x.k === 'step';
+    const chips = side === 'after' ? `<div class="fm-f"><span class="lb">Which steps in “now” did this come from?</span><div class="chips">${S.before.filter(b => b.k !== 'end').map(b =>
+      `<button type="button" class="chip${(x.from || []).includes(b.id) ? ' on' : ''}" data-act="from" data-b="${b.id}" aria-pressed="${(x.from || []).includes(b.id)}" title="${esc(b.t)}">${b.k === 'wait' ? '⏱' : nums(S.before)[b.id] || '·'}</button>`).join('')}${(x.from || []).length || !N[x.id] ? '' : '<em class="new">None: a new screen</em>'}</div></div>` : '';
+    const answers = q ? `<div class="fm-f"><span class="lb">Answers, and where each one goes</span>${x.ans.map((a, j) => `<div class="ans"><input data-ai="${j}" data-af="t" value="${esc(a.t)}" aria-label="Answer ${j + 1}" placeholder="Answer"><select data-go="ans" data-i="${j}" aria-label="Where answer ${j + 1} goes">${goOpts(list, x, a.to, N, j)}</select>${x.ans.length > 2 ? `<button type="button" class="tbtn xs ic" data-act="ansrm" data-i="${j}" aria-label="Remove answer ${j + 1}" title="Remove">✕</button>` : '<span></span>'}</div>${a.to === '@stuck' ? `<input data-ai="${j}" data-af="say" value="${esc(a.say || '')}" aria-label="What happens to them" placeholder="What happens? e.g. Search again">` : ''}`).join('')}
+      <button type="button" class="sbtn" data-act="ansadd" style="justify-self:start">+ Add an answer</button></div>` : `<div class="fm-f"><label for="to-${u}">Goes to</label><select id="to-${u}" data-go="to">${goOpts(list, x, x.to || '', N)}</select></div>`;
+    return `<li class="fm-row k-${x.k}${x.bad ? ' bad' : ''}${x.id === selId ? ' sel' : ''}" data-side="${side}" data-id="${x.id}">
+      <div class="fm-top"><span class="fm-n"><i style="font-style:normal">${num}</i></span>
+        <input class="fm-t" data-f="t" value="${esc(x.t)}" placeholder="${x.k === 'wait' ? 'How long? e.g. 2 working days' : q ? 'The question' : x.k === 'end' ? 'Where it starts or ends' : side === 'before' ? 'What the person does' : 'The screen, or what happens'}" aria-label="${x.k === 'wait' ? 'How long the wait is' : 'Step ' + num}">
+        ${x.bad ? '<span class="fm-mark" title="People get stuck here">✗</span>' : ''}</div>
+      <div class="fm-det">
+        <div class="fm-f"><span class="lb">This is a…</span><div class="kseg" role="group" aria-label="Kind of step">${[['step', 'Step'], ['q', 'Question'], ['wait', 'Wait'], ['end', 'Start/end']].map(([k, t]) => `<button type="button" data-act="kind" data-k="${k}" class="${x.k === k ? 'on' : ''}" aria-pressed="${x.k === k}">${t}</button>`).join('')}</div></div>
+        ${!step ? '' : `<div class="fm-f"><label for="w-${u}">Where it happens, or a detail</label><input id="w-${u}" data-f="w" value="${esc(x.w)}" placeholder="Website, form, phone, message…"></div>`}
+        ${answers}
+        ${!step ? '' : `<button type="button" class="sbtn stk${x.bad ? ' on' : ''}" data-act="bad" aria-pressed="${x.bad}">${x.bad ? '✗ People get stuck here' : 'Do people get stuck here? Mark it ✗'}</button>`}
+        ${x.bad && step ? `<div class="fm-f"><label for="y-${u}">What goes wrong? A fact, with a number if you can</label><input id="y-${u}" data-f="note" value="${esc(x.note)}" placeholder="e.g. 199 words before you can start"></div>` : ''}
+        <div class="fm-f"><span class="lb">Colour</span><div class="swatches" role="group" aria-label="Colour">${[['', 'No colour'], ...Object.keys(PAL).map(k => [k, k])].map(([k, n]) => `<button type="button" class="sw${(x.c || '') === k ? ' on' : ''}" data-act="col" data-c="${k}" aria-pressed="${(x.c || '') === k}" aria-label="${n}" title="${n}" style="background:${k ? PAL[k][0] : '#fff'};border-color:${k ? PAL[k][1] : '#8E8685'}"></button>`).join('')}</div>
+          ${x.c ? `<label for="m-${u}" style="margin-top:6px">What does ${x.c} mean on your diagram?</label><input id="m-${u}" data-legend="${x.c}" value="${esc(S.legend[x.c] || '')}" placeholder="e.g. Screens I designed">` : ''}</div>
+        ${chips}
+        <details class="fm-more"${x.aside || (x.off && step) ? ' open' : ''}><summary>Add a side note, or take off the number</summary>
+          ${step || q ? `<div class="fm-f"><label class="fm-chk"><input type="checkbox" data-off="1"${x.off ? '' : ' checked'}> Give it a number</label></div>` : ''}
+          <div class="fm-f"><label for="a-${u}">A side note, joined by a line</label><input id="a-${u}" data-f="aside" value="${esc(x.aside || '')}" placeholder="e.g. Not sure → talk to a person"></div></details>
+        <div class="fm-tools"><button type="button" class="sbtn" data-act="up" aria-label="Move earlier" ${i ? '' : 'disabled'}>← Earlier</button><button type="button" class="sbtn" data-act="down" aria-label="Move later" ${i < list.length - 1 ? '' : 'disabled'}>Later →</button>
+          ${side === 'after' && i < list.length - 1 ? '<button type="button" class="sbtn" data-act="merge" title="Join this with the next one">Merge with next</button>' : ''}<span class="sp"></span><button type="button" class="sbtn" data-act="del">Remove</button></div>
+      </div></li>`;
+  }
+  function renderList(side) {
+    const list = S[side], N = nums(list);
+    $('l-' + side).innerHTML = list.map((x, i) => rowHTML(x, i, list, side, N)).join('') || `<li class="fm-empty">${side === 'before' ? 'No steps yet. Add the first thing a person does, or <button type="button" class="linkish" data-act="example">see the example</button>.' : `Your version starts as a copy of <i>now</i>.<br><button type="button" class="tbtn pri" data-act="seed"${S.before.length ? '' : ' disabled'}>Start from my “now”</button>`}</li>`;
+  }
+  /* the rows of the table: every step from now, then any new screen */
+  function d2Rows() {
+    const F = fates(), N = nums(S.before), an = nums(S.after), named = y => `${an[y.id] ? an[y.id] + ' ' : ''}${y.t}`;
+    const rows = S.before.filter(b => b.k !== 'end').map(b => { const f = F[b.id];
+      return { id: b.id, before: `${b.k === 'wait' ? 'Wait' : (N[b.id] || '·') + '.'} ${b.t}`, after: f.into ? named(f.into) : '—', kind: f.kind, what: f.kind === 'removed' ? 'Removed' : f.kind[0].toUpperCase() + f.kind.slice(1) + (f.moved && f.kind !== 'moved' ? ', moved' : '') }; });
+    S.after.filter(a => an[a.id] && !(a.from || []).length).forEach(a => rows.push({ id: a.id, before: '(new)', after: named(a), kind: 'new', what: 'New' }));
+    return rows;
+  }
+  function d2Count() { const need = d2Rows().filter(r => r.kind !== 'kept'), done = need.filter(r => (S.why[r.id] || '').trim()).length; $('d2n').textContent = need.length ? `${done} of ${need.length} changes explained` : ''; }
+  const d2Sum = () => `Steps before: ${counts(S.before).steps}   ·   Screens after: ${counts(S.after).steps}`;
+  function renderD2() {
+    const rows = d2Rows();
+    $('d2').innerHTML = rows.length ? `<table class="d2t"><thead><tr><th scope="col">Before step</th><th scope="col">After</th><th scope="col">What happened</th><th scope="col" style="width:48%">Why</th></tr></thead><tbody>${rows.map(r => `<tr data-id="${r.id}"${r.id === selId ? ' class="sel"' : ''}><td>${esc(r.before)}</td><td>${esc(r.after)}</td><td><span class="fate ${r.kind}">${esc(r.what)}</span></td><td><input data-why="${r.id}" value="${esc(S.why[r.id] || '')}" placeholder="${r.kind === 'kept' ? 'Why? (optional for a kept step)' : r.kind === 'new' ? 'Why add it?' : 'Why?'}" aria-label="Why, for ${esc(r.before)}"></td></tr>`).join('')}</tbody><tfoot><tr><td colspan="4">${esc(d2Sum())}</td></tr></tfoot></table>` : '<p class="fm-empty" style="margin-top:10px">Fill in your “now” first.</p>';
+    d2Count();
+  }
+  let lastTab = null, dockOpen = false;
+  function setDock(on) { const was = dockOpen; dockOpen = on; $('dock').hidden = !on; $('dockb').setAttribute('aria-expanded', String(on)); $('dockb').classList.toggle('on', on); if (was !== on && view) view.fit($('slide'), 18, 2); }
+  function renderAll() {
+    renderList('before'); renderList('after'); renderD2();
+    $('goal').value = S.goal; $('d2note').value = S.d2note;
+    document.querySelectorAll('[data-tab]').forEach(b => { const on = b.dataset.tab === S.tab; b.setAttribute('aria-selected', String(on)); $('p-' + b.dataset.tab).hidden = !on; });
+    S.view = S.tab === 'before' ? 'before' : S.tab === 'after' ? 'after' : 'both';
+    if (S.tab !== lastTab) { lastTab = S.tab; setDock(S.tab === 'd2' ? true : S.tab === 'before' ? false : dockOpen); }
+    $('dockb').hidden = S.tab === 'before' || !S.after.length; $('tidy').hidden = !(S.tab !== 'after' && S.before.some(x => x.p)) && !(S.tab !== 'before' && S.after.some(x => x.p));
+    $('dl').textContent = S.tab === 'before' ? 'Copy “now”' : S.tab === 'after' ? 'Copy my version' : 'Copy both';
+    $('afterhow').innerHTML = S.after.length ? 'Remove, merge, move and rename steps until it answers every ✗. Click anything on the diagram to change it, and drag a box to move it.' : '';
+    const nothing = S.tab === 'after' ? !S.after.length : !S.before.length; $('dl').disabled = nothing; $('dl').title = nothing ? 'Nothing to copy yet: add a step first' : '';
+    $('reseed').hidden = !S.after.length; $('undo').disabled = !hist.length; $('redo').disabled = !fut.length;
+    draw();
+  }
+
+  /* ---------- the slide: 1920 × 1080, read left to right ---------- */
+  const W = 1920, H = 1080, M = 72;
+  /* the goal, on one line at full size, or two lines a little smaller */
+  function goalLines() {
+    const g = S.goal || 'Your goal', big = g.length <= 66, fs = big ? 44 : 34, lines = big ? [g] : FD_clip(FD_wrap(g, 92), 2);
+    return `<g data-goal="1">${lines.map((l, i) => `<text x="${M}" y="${M + (big ? 72 : 60 + i * 42)}" font-size="${fs}" font-weight="800" fill="${COL.ink}">${esc(l)}</text>`).join('')}</g>`;
+  }
+  const GEO = { before: {}, after: {} }, LEG = '@legend';
+  function slide() {
+    const cb = counts(S.before), ca = counts(S.after), v = S.view, F = v === 'both' ? fates() : null;
+    const head = v === 'before' ? 'How people do it now' : v === 'after' ? 'Your version' : 'Now, and your version';
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${FONT}">
+      ${DEFS}
+      <rect width="${W}" height="${H}" fill="#fff"/>
+      <text x="${M}" y="${M + 22}" font-size="20" font-weight="700" fill="${COL.mute}" letter-spacing="2">FLOW DIAGRAM</text>
+      ${goalLines()}
+      <text x="${W - M}" y="${M + 22}" font-size="22" fill="${COL.mute}" text-anchor="end">${esc(head)}</text>`;
+    const sum = c => `${c.steps} step${c.steps === 1 ? '' : 's'} · ${c.waits} wait${c.waits === 1 ? '' : 's'} · ${c.stuck} where people get stuck${c.loops ? ` · ${c.loops} back to an earlier step` : ''}`;
+    /* along the bottom: the key to the colours */
+    const shown = v === 'both' ? [...S.before, ...S.after] : S[v], keys = [...new Set(shown.map(x => x.c))].filter(k => PAL[k] && (S.legend[k] || '').trim());
+    const lh = keys.length ? 44 : 0;
+    if (lh) { let kx = M; const ky = H - 60; keys.forEach(k => { const t = S.legend[k].trim(); s += `<rect x="${kx}" y="${ky}" width="26" height="26" rx="6" fill="${PAL[k][0]}" stroke="${PAL[k][1]}" stroke-width="2.5"/><text data-legend="${k}" x="${kx + 34}" y="${ky + 20}" font-size="20" fill="${COL.ink}">${esc(t)}</text>`; kx += 34 + t.length * 10.5 + 34; }); }
+    const y0 = M + 112, bw0 = W - 2 * M, room = H - y0 - 30 - lh;
+    if (v === 'both') {
+      /* each gets height for the rows it has */
+      const rowsIn = l => l.length ? Math.max(...Object.values(cellsOf(l)).map(q => q.r)) + 1 : 1, r1 = rowsIn(S.before), r2 = rowsIn(S.after), hh = room * (r1 + 0.7) / (r1 + r2 + 1.4);
+      s += graph(S.before, M, y0, bw0, hh - 10, { label: 'NOW', sub: sum(cb), F, geo: GEO.before }) + `<line x1="${M}" y1="${y0 + hh}" x2="${W - M}" y2="${y0 + hh}" stroke="#DFDBD7" stroke-width="2"/>` +
+        graph(S.after, M, y0 + hh + 14, bw0, room - hh - 10, { label: 'YOUR VERSION', sub: `${sum(ca)}   (was ${cb.steps} steps, ${cb.stuck} stuck)`, geo: GEO.after });
+    } else s += graph(S[v], M, y0, bw0, room, { label: v === 'before' ? 'NOW' : 'YOUR VERSION', sub: sum(v === 'before' ? cb : ca), geo: GEO[v] });
+    return s + '</svg>';
+  }
+  function draw() {
+    save();
+    $('slide').innerHTML = slide(); mark();
+    const cb = counts(S.before), ca = counts(S.after);
+    const t = c => `<b>${c.steps}</b> step${c.steps === 1 ? '' : 's'}, <b>${c.waits}</b> wait${c.waits === 1 ? '' : 's'}, <b>${c.stuck}</b> stuck`;
+    $('tally').innerHTML = `Now: ${t(cb)}` + (S.after.length ? ` · Your version: ${t(ca)}` : '');
+  }
+
+  /* history: every change can be undone */
+  let hist = [], fut = [];
+  const snap = () => { hist.push(JSON.stringify(S)); if (hist.length > 80) hist.shift(); fut = []; $('undo').disabled = false; $('redo').disabled = true; };
+  /* a field has focus: remember how things were, and only count it once something changes */
+  let pend = null; const hold = () => { pend = JSON.stringify(S); }, flush = () => { if (pend) { hist.push(pend); pend = null; fut = []; $('undo').disabled = false; $('redo').disabled = true; } };
+  $('steps').addEventListener('focusin', e => { if (e.target.matches('input')) hold(); });
+
+  /* the selected step: open in the list, outlined on the diagram. The boxes can be reached by
+     keyboard too: Tab to one, Enter to type in it. */
+  function mark() { document.querySelectorAll('#slide g[data-step]').forEach(g => { g.classList.toggle('sel', g.dataset.step === selId);
+    if (g.querySelector('[data-f="t"]') && !g.hasAttribute('tabindex')) { g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button'); const st = stepOf(g.dataset.step); g.setAttribute('aria-label', 'Edit: ' + (st ? st.t : '')); } }); }
+  function pick(id) { selId = id; document.querySelectorAll('.fm-row,.d2t tr[data-id]').forEach(r => r.classList.toggle('sel', r.dataset.id === id)); mark(); }
+  $('steps').addEventListener('focusin', e => { const r = e.target.closest('.fm-row'); if (r && r.dataset.id !== selId) pick(r.dataset.id); });
+  $('dock').addEventListener('focusin', e => { if (e.target.matches('input')) hold(); const r = e.target.closest('tr[data-id]'); if (r && r.dataset.id !== selId) pick(r.dataset.id); });
+  $('dock').addEventListener('click', e => { const r = e.target.closest('tr[data-id]'); if (!r) return; pick(r.dataset.id); const g = document.querySelector(`#slide g[data-step="${r.dataset.id}"]`); if (g) view.reveal(g); });
+  /* a click on a step in the list: it lights up on the diagram, comes into view, and you can type
+     straight there. (Tab only highlights it, so the keyboard stays in the list.) Controls in an open
+     row keep working as usual, and a second click in its words edits them in the list. */
+  let wasSel = null;
+  $('steps').addEventListener('pointerdown', e => { const r = e.target.closest('.fm-row'); wasSel = r ? r.dataset.id === selId : null; }, true);
+  $('steps').addEventListener('click', e => {
+    const r = e.target.closest('.fm-row');
+    if (!r) return;
+    if (r.dataset.id !== selId) pick(r.dataset.id);
+    if (wasSel || e.target.closest('.fm-det,button,select,summary') || e.detail === 0) return;
+    const g = document.querySelector(`#slide g[data-step="${r.dataset.id}"]`); if (g) view.reveal(g);
+    openInl(r.dataset.id, 't'); lit(r.dataset.id, 't');
+  });
+  const stepOf = id => S.before.find(x => x.id === id) || S.after.find(x => x.id === id);
+
+  /* typing on the diagram: a box of words laid exactly over what you clicked, inside the canvas so
+     it zooms with it. It writes to the same step as the list, and the diagram redraws under it. */
+  const inl = $('inl'); let open = null;
+  /* what a piece of words on the diagram is: read it, change it, and keep the side panel in step */
+  function acc(o) {
+    if (o.id === GOAL) return { get: () => S.goal, set: v => { S.goal = v; $('goal').value = v; } };
+    if (o.id === LEG) return { get: () => S.legend[o.f] || '', set: v => { S.legend[o.f] = v; document.querySelectorAll(`[data-legend="${o.f}"]`).forEach(i => { if (i.tagName === 'INPUT') i.value = v; }); } };
+    const x = stepOf(o.id), m = o.f.match(/^(ans|say):(\d+)$/); if (!x) return null;
+    if (m) { const a = x.ans[+m[2]], k = m[1] === 'ans' ? 't' : 'say'; return { get: () => a[k] || '', set: v => { a[k] = v; const i = document.querySelector(`.fm-row[data-id="${o.id}"] [data-ai="${m[2]}"][data-af="${k}"]`); if (i) i.value = v; } }; }
+    return { get: () => x[o.f] || '', set: v => { x[o.f] = v; const i = document.querySelector(`.fm-row[data-id="${o.id}"] [data-f="${o.f}"]`); if (i) i.value = v; } };
+  }
+  function placeInl() {
+    if (!open) return;
+    const isGoal = open.id === GOAL, flat = isGoal || open.id === LEG;
+    inl.style.textAlign = flat ? 'left' : 'center'; inl.style.fontWeight = isGoal ? '800' : open.id === LEG ? '400' : '600';
+    let g, txt;
+    if (isGoal) { g = document.querySelector('#slide [data-goal]'); txt = g && g.querySelector('text'); }
+    else if (open.id === LEG) g = txt = document.querySelector(`#slide [data-legend="${open.f}"]`);
+    else { const all = [...document.querySelectorAll(`#slide [data-step="${open.id}"],#slide [data-edge="${open.id}"]`)]; g = all.find(x => x.querySelector(`text[data-f="${open.f}"]`)) || all[0]; txt = g && g.querySelector(`text[data-f="${open.f}"]`); }
+    if (!g) { closeInl(); return; }
+    const shape = g.querySelector('rect,polygon'), fs = txt ? +txt.getAttribute('font-size') : 17;
+    let b;
+    if (flat) { const m = view.boxOf(g); b = { x: m.x - 8, y: m.y - 4, w: Math.max(m.w + 60, isGoal ? 700 : 420), h: m.h + 12 }; }
+    else if (open.f === 't' && shape) { b = view.boxOf(shape); if (shape.tagName === 'polygon') { const w = b.w * .68, h = b.h * .6; b = { x: b.x + (b.w - w) / 2, y: b.y + (b.h - h) / 2, w, h }; } }
+    else { const m = txt ? view.boxOf(txt) : view.boxOf(g); const w = Math.max(m.w + 30, 200); b = { x: m.x + m.w / 2 - w / 2, y: m.y - 6, w, h: Math.max(m.h + 14, 38) }; }
+    inl.style.left = b.x + 'px'; inl.style.top = b.y + 'px'; inl.style.width = b.w + 'px'; inl.style.height = Math.max(b.h, 34) + 'px'; inl.style.fontSize = fs + 'px';
+    const lines = Math.max(1, Math.ceil((inl.value.length || 1) * fs * 0.52 / Math.max(40, b.w - 18))); inl.style.paddingTop = Math.max(3, (Math.max(b.h, 34) - lines * fs * 1.25) / 2 - 3) + 'px';
+  }
+  const GOAL = '@goal';
+  function openInl(id, f) {
+    const a = acc({ id, f }); if (!a) return;
+    hold(); open = { id, f }; inl.value = a.get(); inl.hidden = false; placeInl(); inl.focus(); inl.select();
+  }
+  function closeInl() { if (!open) return; open = null; inl.hidden = true; }
+  inl.addEventListener('input', () => { if (!open) return; flush(); const a = acc(open); if (a) a.set(inl.value.replace(/\n/g, ' ')); if (open.f === 't') renderD2(); draw(); placeInl(); });
+  inl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); const id = open && open.id; closeInl(); const g = id && id[0] !== '@' && document.querySelector(`#slide g[data-step="${id}"]`); if (g) g.focus({ preventScroll: true }); } });
+  inl.addEventListener('blur', () => closeInl());
+
+  /* the setting that belongs to what was clicked: it lights up, and comes into view */
+  const field = f => { const m = f.match(/^(ans|say|out):(-?\d+)$/); if (m) return m[1] === 'out' ? (+m[2] < 0 ? '[data-go="to"]' : `[data-go="ans"][data-i="${m[2]}"]`) : `[data-ai="${m[2]}"][data-af="${m[1] === 'ans' ? 't' : 'say'}"]`;
+    return { t: '.fm-t', w: '[data-f="w"]', note: '[data-f="note"]', aside: '[data-f="aside"]', bad: '[data-act="bad"]' }[f]; };
+  function unlit() { document.querySelectorAll('.lit').forEach(x => x.classList.remove('lit')); }
+  function lit(id, f) {
+    unlit();
+    let el;
+    if (id === GOAL) el = $('goal');
+    else if (S.tab === 'd2') { const x = stepOf(id), li = document.querySelector(`.d2t tr[data-id="${id}"]`) || (x && (x.from || []).map(b => document.querySelector(`.d2t tr[data-id="${b}"]`)).find(Boolean)); el = li && li.querySelector('[data-why]'); }
+    else { const r = document.querySelector(`.fm-row[data-id="${id}"]`), q = field(f); el = r && ((q && r.querySelector(q)) || r); }
+    if (el) { const d = el.closest('details'); if (d) d.open = true; el.classList.add('lit'); el.scrollIntoView({ block: 'nearest' }); }
+  }
+  /* a click: select it, open its settings with the right one lit, and start typing if it was words */
+  const TYPED = /^(t|w|note|aside|ans:\d+|say:\d+)$/;
+  function selectStep(id, f = 't') {
+    const side = S.before.some(x => x.id === id) ? 'before' : 'after';
+    closeInl(); selId = id;
+    if (S.tab !== 'd2' && S.tab !== side) S.tab = side;
+    renderAll();
+    lit(id, f);
+    if (TYPED.test(f)) openInl(id, f);
+  }
+  let dragged = false;
+  $('slide').addEventListener('click', e => {
+    if (dragged) return;
+    if (e.target.closest('[data-goal]')) { closeInl(); pick(null); lit(GOAL); openInl(GOAL, 'goal'); return; }
+    const k = e.target.closest('[data-legend]'); if (k) { closeInl(); pick(null); unlit(); openInl(LEG, k.dataset.legend); return; }
+    const ed = e.target.closest('[data-edge]'); if (ed) { const t = e.target.closest('[data-f]'); selectStep(ed.dataset.edge, t ? t.dataset.f : 'out:' + ed.dataset.i); return; }
+    const g = e.target.closest('g[data-step]');
+    if (!g) { closeInl(); unlit(); if (selId) pick(null); return; }
+    const t = e.target.closest('[data-f]'); selectStep(g.dataset.step, t ? t.dataset.f : 't'); });
+  /* dragging a box: it snaps to the grid, and swaps with anything already there */
+  const sideOf = id => S.before.some(x => x.id === id) ? 'before' : 'after';
+  function moveCell(id, c, r) {
+    const side = sideOf(id), list = S[side], cells = cellsOf(list), was = cells[id];
+    c = Math.max(0, Math.min(9, c)); r = Math.max(0, Math.min(7, r)); if (c === was.c && r === was.r) return false;
+    snap(); list.forEach(x => { x.p = { ...cells[x.id] }; });
+    const there = list.find(x => x.id !== id && x.p.c === c && x.p.r === r); if (there) there.p = { c: was.c, r: was.r };
+    list.find(x => x.id === id).p = { c, r }; return true;
+  }
+  let dg = null;
+  $('slide').addEventListener('pointerdown', e => { if (e.button !== 0) return; const g = e.target.closest('g[data-step]'); if (g) dg = { id: g.dataset.step, x: e.clientX, y: e.clientY, on: false }; });
+  addEventListener('pointermove', e => { if (!dg) return; const dx = e.clientX - dg.x, dy = e.clientY - dg.y; if (!dg.on && Math.hypot(dx, dy) < 6) return;
+    if (!dg.on) { dg.on = true; closeInl(); }
+    const z = view.v.z; document.querySelectorAll(`#slide g[data-step="${dg.id}"]`).forEach(el => { el.setAttribute('transform', `translate(${dx / z} ${dy / z})`); el.classList.add('dragging'); });
+    dg.dx = dx / z; dg.dy = dy / z; });
+  addEventListener('pointerup', () => { if (!dg) return; const d = dg; dg = null; if (!d.on) return;
+    dragged = true; setTimeout(() => { dragged = false; }, 0);
+    const G = GEO[sideOf(d.id)], q = G.cells && G.cells[d.id]; if (q && moveCell(d.id, q.c + Math.round(d.dx / G.cw), q.r + Math.round(d.dy / G.rh))) { selId = d.id; renderAll(); } else draw(); });
+  $('stage').addEventListener('click', e => { if (!dragged && (e.target === $('stage') || e.target === $('world'))) { closeInl(); unlit(); if (selId) pick(null); } });
+  $('slide').addEventListener('keydown', e => { const g = e.target.closest('g[data-step]'); if (!g) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectStep(g.dataset.step, 't'); return; }
+    const id = g.dataset.step, side = S.before.some(x => x.id === id) ? 'before' : 'after', list = S[side], i = list.findIndex(x => x.id === id);
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); selId = id; if (S.tab !== 'd2') S.tab = side; renderAll(); const del = document.querySelector(`.fm-row[data-id="${id}"] [data-act="del"]`); if (del) del.click(); }
+    /* once boxes have been placed by hand, the arrow keys place them too */
+    const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (dir && (list.some(x => x.p) || dir[1])) { e.preventDefault(); const q = cellsOf(list)[id]; if (moveCell(id, q.c + dir[0], q.r + dir[1])) { selId = id; renderAll(); const n = document.querySelector(`#slide g[data-step="${id}"]`); if (n) n.focus({ preventScroll: true }); } return; }
+    if ((e.key === 'ArrowLeft' && i > 0) || (e.key === 'ArrowRight' && i < list.length - 1)) { e.preventDefault(); snap(); const j = i + (e.key === 'ArrowLeft' ? -1 : 1); [list[i], list[j]] = [list[j], list[i]]; selId = id; renderAll(); const n = document.querySelector(`#slide g[data-step="${id}"]`); if (n) n.focus({ preventScroll: true }); }
+  });
+  /* tabs: the arrow keys move between them, as tabs should */
+  document.querySelector('.fm-tabs').addEventListener('keydown', e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault();
+    const ts = [...document.querySelectorAll('.fm-tabs [role=tab]')], i = ts.indexOf(document.activeElement), n = ts[(i + (e.key === 'ArrowLeft' ? ts.length - 1 : 1)) % ts.length]; n.focus(); n.click(); });
+  addEventListener('keydown', e => { if (e.target.closest('input,textarea,select')) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $(e.shiftKey ? 'redo' : 'undo').click(); }
+    if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); $('redo').click(); } });
+
+  /* ---------- editing ---------- */
+  const side0 = x => S.before.includes(x) ? 'before' : 'after';
+  const listOf = el => S[el.closest('.fm-row').dataset.side];
+  const itemOf = el => { const r = el.closest('.fm-row'); return S[r.dataset.side].find(x => x.id === r.dataset.id); };
+  document.addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'inl') return;
+    flush();
+    if (t.id === 'goal') { S.goal = t.value; draw(); return; }
+    if (t.id === 'd2note') { S.d2note = t.value; save(); return; }
+    if (t.closest('#savedlg')) return;
+    if (t.dataset.why) { S.why[t.dataset.why] = t.value; save(); d2Count(); return; }
+    if (t.dataset.legend) { S.legend[t.dataset.legend] = t.value; draw(); return; }
+    if (t.dataset.af) { const a = itemOf(t).ans[+t.dataset.ai]; a[t.dataset.af] = t.value; draw(); return; }
+    const f = t.dataset.f; if (!f) return;
+    itemOf(t)[f] = t.value; draw();
+    if (f === 't') renderD2();
+  });
+  /* where an arrow goes; "a new box" makes one, reached only by this arrow, and starts typing in it */
+  function newBox(list) { const n = { id: nid(list === S.before ? 'b' : 'a'), t: '', w: '', k: 'step', bad: false, note: '', off: true, br: true, from: [] }; list.push(n); return n; }
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (t.dataset.off) { snap(); itemOf(t).off = !t.checked; renderAll(); return; }
+    if (!t.dataset.go) return;
+    snap(); const x = itemOf(t), list = listOf(t), nb = t.value === '@new' ? newBox(list) : null, v = nb ? nb.id : t.value;
+    if (t.dataset.go === 'to') x.to = v; else x.ans[+t.dataset.i].to = v;
+    if (nb) selectStep(nb.id, 't'); else { renderAll(); lit(x.id, t.dataset.go === 'to' ? 'out:-1' : 'out:' + t.dataset.i); }
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.closest('.menu')) b.closest('.menu').open = false;
+    if (b.dataset.act === 'help') { $('helpdlg').showModal(); return; }
+    if (b.dataset.act === 'shapes') { $('shapesdlg').showModal(); return; }
+    if (b.dataset.act === 'tour') { tour.start(); return; }
+    if (b.dataset.act === 'dock') { setDock(!dockOpen); return; }
+    if (b.dataset.act === 'tidy') { snap(); S.before.concat(S.after).forEach(x => { if (S.tab === 'd2' || sideOf(x.id) === S.tab) delete x.p; }); renderAll(); return; }
+    if (b.dataset.act === 'savebox') { $('savemsg').textContent = ''; $('loadcode').value = ''; saveText().then(t => { $('savecode').value = t; }); $('savedlg').showModal(); return; }
+    if (b.dataset.act === 'savecopy') { const t = $('savecode').value; navigator.clipboard.writeText(t).then(() => { $('savemsg').textContent = 'Copied. Keep it somewhere safe.'; }, () => { $('savecode').select(); $('savemsg').textContent = 'Press Ctrl or ⌘ C to copy it.'; }); return; }
+    if (b.dataset.act === 'loadcode') { loadText($('loadcode').value); return; }
+    if (b.dataset.act === 'zin') return view.zoomBy(1.25);
+    if (b.dataset.act === 'zout') return view.zoomBy(0.8);
+    if (b.dataset.act === 'fit') return view.fit($('slide'), 18, 2);
+    if (b.dataset.tab) { closeInl(); S.tab = b.dataset.tab; renderAll(); return; }
+    const act = b.dataset.act; if (!act) return;
+    const msg = $('msg');
+    if (act === 'add') { snap(); const side = b.dataset.side; const nx = { id: nid(side[0]), t: '', w: '', k: b.dataset.k || 'step', bad: false, note: '', from: [] }; const at = S[side].findIndex(x => x.id === selId); S[side].splice(at < 0 ? S[side].length : at + 1, 0, nx); selId = nx.id; renderAll();
+      const nr = document.querySelector(`.fm-row[data-id="${nx.id}"] .fm-t`); nr.scrollIntoView({ block: 'nearest' }); nr.focus(); return; }
+    if (act === 'seed') { if (S.after.length && !confirm('Replace your version with a fresh copy of “now”?')) return;
+      snap(); const ids = {}; S.before.forEach(x => { ids[x.id] = nid('a'); });
+      S.after = S.before.map(x => { const c = JSON.parse(JSON.stringify(x)); c.id = ids[x.id]; c.from = x.k === 'end' ? [] : [x.id]; c.bad = false; c.note = ''; if (c.to && ids[c.to]) c.to = ids[c.to]; (c.ans || []).forEach(a => { if (ids[a.to]) a.to = ids[a.to]; }); return c; }); S.tab = 'after'; renderAll(); return; }
+    if (act === 'undo') { if (!hist.length) return; closeInl(); fut.push(JSON.stringify(S)); S = JSON.parse(hist.pop()); renderAll(); return; }
+    if (act === 'redo') { if (!fut.length) return; closeInl(); hist.push(JSON.stringify(S)); S = JSON.parse(fut.pop()); renderAll(); return; }
+    if (act === 'example' || act === 'example2') { if (S.before.length && !confirm('Replace everything here with the example? Undo brings it back.')) return; snap(); S = tidyState(act === 'example' ? EXAMPLE() : COUNCIL()); selId = null; renderAll(); view.fit($('slide'), 18, 2); return; }
+    if (act === 'clear') { if (!confirm('Clear everything and start again? Undo brings it back.')) return; snap(); S = EMPTY(); selId = null; renderAll(); return; }
+    if (act === 'png') return copyPicture(slideBlob(), `flow-${S.view}.png`, msg, 'Copied. Paste it into your slide.');
+    if (act === 'd2pic') return copyPicture(tableBlob(), 'what-happened.png', msg, 'Copied as a picture. Paste it into your slide.');
+    if (act === 'a2') return copy(a2Text(), msg);
+    if (act === 'd2') return copyTable(msg);
+    if (!b.closest('.fm-row')) return;
+    snap(); const list = listOf(b), x = itemOf(b), i = list.indexOf(x);
+    if (act === 'del') { const gone = x.id, next = list[i + 1] || list[i - 1]; list.splice(i, 1); selId = next ? next.id : null;
+      [...S.before, ...S.after].forEach(y => { if (y.to === gone) y.to = ''; (y.ans || []).forEach(a => { if (a.to === gone) a.to = ''; }); if (y.from) y.from = y.from.filter(z => z !== gone); }); delete S.why[gone]; }
+    if (act === 'up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+    if (act === 'down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+    if (act === 'bad') x.bad = !x.bad;
+    if (act === 'kind') { x.k = b.dataset.k; if (x.k !== 'step') x.bad = false; if (x.k === 'q' && !x.ans) x.ans = [{ t: 'yes', to: '' }, { t: 'no', to: '' }]; if (x.k === 'q' && side0(x) === 'after') x.off = true; else if (x.k === 'step') x.off = false; }
+    if (act === 'col') { x.c = b.dataset.c; }
+    if (act === 'ansadd') { x.ans.push({ t: '', to: '' }); }
+    if (act === 'ansrm') { x.ans.splice(+b.dataset.i, 1); }
+    if (act === 'merge' && list[i + 1]) { const y = list[i + 1]; x.from = [...new Set([...(x.from || []), ...(y.from || [])])]; list.splice(i + 1, 1); list.forEach(z => { if (z.to === y.id) z.to = x.id === z.id ? '' : x.id; (z.ans || []).forEach(a => { if (a.to === y.id) a.to = x.id; }); }); }
+    if (act === 'from') { const id = b.dataset.b; x.from = (x.from || []).includes(id) ? x.from.filter(z => z !== id) : [...(x.from || []), id]; }
+    const q = act === 'del' ? `.fm-row[data-id="${selId}"] .fm-t` : `.fm-row[data-id="${x.id}"] [data-act="${act}"]${b.dataset.k ? `[data-k="${b.dataset.k}"]` : ''}${b.dataset.b ? `[data-b="${b.dataset.b}"]` : ''}`;
+    renderAll();
+    const back = document.querySelector(q), fall = document.querySelector(`.fm-row[data-id="${selId}"] .fm-t`) || document.querySelector(`#p-${S.tab} [data-act="add"]`);
+    (back && !back.disabled ? back : fall || document.body).focus();
+  });
+
+  /* ---------- out: the slide as a picture, the lists and table as text ---------- */
+  /* the slide as a picture */
+  const slideBlob = () => new Promise((ok, no) => { const img = new Image(), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    img.onload = () => { const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.drawImage(img, 0, 0); cv.toBlob(b => (b ? ok(b) : no()), 'image/png'); };
+    img.onerror = no; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(slide()); });
+  /* on the clipboard if the browser allows it; otherwise as a file, and it says so */
+  async function copyPicture(blob, name, msg, done) {
+    say(msg, 'Copying…');
+    try { if (!navigator.clipboard || !window.ClipboardItem) throw new Error('no clipboard');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); say(msg, done); }
+    catch (e) {
+      try { const bl = await blob, a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); say(msg, 'This browser would not copy a picture, so it was saved as a file instead. Drag it into your slide.'); }
+      catch (e2) { say(msg, 'The picture did not work in this browser. Take a screenshot of the slide instead.'); } }
+  }
+  const listText = (list) => { const N = nums(list), by = {}; list.forEach(x => { by[x.id] = x; }); const nameOf = id => by[id] ? (N[id] ? 'step ' + N[id] : by[id].t) : '';
+    return list.map(x => { if (x.k === 'wait') return `    wait: ${x.t}`; if (x.k === 'end') return `    (${x.t})`;
+      const line = `${((N[x.id] ? N[x.id] + '.' : '·')).padEnd(4)}${x.t}${x.w ? '  —  ' + x.w : ''}${x.bad ? `  (people get stuck${x.note ? ': ' + x.note : ''})` : ''}`;
+      return line + (x.k === 'q' ? (x.ans || []).map((a, j) => `\n    ${a.t}: ${a.to === '@stuck' ? 'stuck' + (a.say ? ', ' + a.say : '') : a.to ? nameOf(a.to) : j === 0 ? 'the next step' : 'not decided yet'}`).join('') : ''); }).join('\n'); };
+  const a2Text = () => { const cb = counts(S.before), ca = counts(S.after);
+    return `Goal: ${S.goal}\n\nBEFORE — how people do it now\n${listText(S.before)}\nSteps before: ${cb.steps} · waits: ${cb.waits} · places people get stuck: ${cb.stuck}\n\nAFTER — your screens\n${listText(S.after)}\nScreens after: ${ca.steps} · waits: ${ca.waits} · places people get stuck: ${ca.stuck}`; };
+  /* the table twice over: a real table for slides and documents, tabs for spreadsheets and anything else.
+     One plain grid and nothing around it: every row has four cells and none are merged, because
+     that is what pastes into every slide tool as one table. */
+  function tableRows() {
+    const one = t => String(t).replace(/\s+/g, ' ').trim(), rows = d2Rows().map(r => [r.before, r.after, r.what, S.why[r.id] || ''].map(one)), c = `Steps before: ${counts(S.before).steps}`, a = `Screens after: ${counts(S.after).steps}`;
+    rows.push([c, a, '', '']); if (S.d2note.trim()) rows.push(['Also', '', '', one(S.d2note)]);
+    return rows;
+  }
+  const HEAD = ['Before step', 'After', 'What happened', 'Why'];
+  function tableOut() {
+    const rows = tableRows(), cell = 'border:1px solid #8E8685;padding:5px 8px;font:13px/1.35 Arial,sans-serif;vertical-align:top';
+    return { html: `<table style="border-collapse:collapse"><thead><tr>${HEAD.map(h => `<th style="${cell};text-align:left;background:#EEECEA">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td style="${cell}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`,
+      text: [HEAD, ...rows].map(r => r.join('\t')).join('\n') };
+  }
+  /* the same grid drawn as a picture, for when a slide tool mangles a pasted table */
+  function tableBlob() { return new Promise((ok, no) => {
+    const k = 2, W2 = 1500, cols = [300, 230, 170, 800], pad = 12, lh = 24, cv = document.createElement('canvas'), m = cv.getContext('2d'), font = (b) => `${b ? 700 : 400} 17px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif`;
+    const lines = (t, w, b) => { m.font = font(b); const out = []; let l = ''; String(t).split(' ').forEach(x => { const n = l ? l + ' ' + x : x; if (m.measureText(n).width > w && l) { out.push(l); l = x; } else l = n; }); out.push(l); return out; };
+    const all = [HEAD, ...tableRows()], laid = all.map((r, i) => { const b = i === 0, cs = r.map((c, j) => lines(c, cols[j] - 2 * pad, b)); return { b, cs, h: Math.max(...cs.map(c => c.length)) * lh + 2 * pad - 6 }; });
+    const H2 = laid.reduce((s, r) => s + r.h, 0) + 2; cv.width = W2 * k; cv.height = H2 * k; m.scale(k, k); m.fillStyle = '#fff'; m.fillRect(0, 0, W2, H2); let y = 1;
+    laid.forEach(r => { let x = 1; if (r.b) { m.fillStyle = '#EEECEA'; m.fillRect(1, y, W2 - 2, r.h); } r.cs.forEach((c, j) => { m.strokeStyle = '#8E8685'; m.strokeRect(x, y, cols[j] - (j === 3 ? 2 : 0), r.h); m.font = font(r.b); m.fillStyle = '#1A1618'; c.forEach((t, n) => m.fillText(t, x + pad, y + pad + 12 + n * lh)); x += cols[j]; }); y += r.h; });
+    cv.toBlob(b => (b ? ok(b) : no()), 'image/png'); }); }
+  async function copyTable(msg) { const { html, text } = tableOut();
+    try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]); say(msg, 'Table copied. Paste it into your slide.'); }
+    catch (e) { copy(text, msg); } }
+  /* saving as text: everything, squeezed into one line to keep anywhere */
+  const b64 = u8 => { let s = ''; u8.forEach(c => { s += String.fromCharCode(c); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const unb64 = t => Uint8Array.from(atob(t.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  const pipe = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  async function saveText() { const raw = new TextEncoder().encode(JSON.stringify(S));
+    return window.CompressionStream ? 'FLOW1z' + b64(await pipe(raw, new CompressionStream('deflate-raw'))) : 'FLOW1j' + b64(raw); }
+  async function loadText(text) {
+    const m = String(text).replace(/\s+/g, '').match(/FLOW1([zj])([\w-]+)/), tell = t => { $('savemsg').textContent = t; };
+    if (!m) { tell('That doesn’t look like saved text. It starts with FLOW1.'); return; }
+    let got = null;
+    try { const bytes = unb64(m[2]), raw = m[1] === 'z' ? await pipe(bytes, new DecompressionStream('deflate-raw')) : bytes; got = tidyState(JSON.parse(new TextDecoder().decode(raw))); } catch (e) {}
+    if (!got) { tell('That text didn’t open. Part of it may have been cut off when it was copied.'); return; }
+    if ((S.before.length || S.after.length) && !confirm('Replace what’s here with the saved work? Undo brings it back.')) return;
+    snap(); S = got; selId = null; lastTab = null; renderAll(); $('savedlg').close(); view.fit($('slide'), 18, 2); say($('msg'), 'Your work is back.');
+  }
+  async function copy(text, msg) { try { await navigator.clipboard.writeText(text); say(msg, 'Copied'); } catch (e) { say(msg, 'Copy did not work in this browser'); } }
+  function say(msg, t) { msg.textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { msg.textContent = ''; }, 3500); }
+
+  view = window.ToolCanvas($('stage'), $('world'), { label: $('zlabel'), fitAll: () => view.fit($('slide'), 18, 2), isBackground: t => t === $('stage') || t === $('world') || (t.closest('#slide') && !t.closest('g[data-step],[data-goal],[data-edge],[data-legend]')) });
+  /* the legend behind the ? button: the marks as the diagram draws them, and one word each */
+  const box = (o = {}) => `<rect x="${o.x || 6}" y="${o.y || 8}" width="${o.w || 64}" height="${o.h || 28}" rx="${o.rx == null ? 6 : o.rx}" fill="${o.fill || '#fff'}" stroke="${o.stroke || COL.line}" stroke-width="2"${o.dash ? ' stroke-dasharray="5 4"' : ''}/>`;
+  const head = c => `<path d="M60,22 l-9,-5 v10 z" fill="${c}"/>`;
+  $('shapes').innerHTML = [
+    [box() + `<text x="12" y="20" font-size="10" font-weight="800" fill="${COL.mute}">1</text>`, 'Step'],
+    [box(), 'Not one of your screens'],
+    [`<polygon points="38,2 70,22 38,42 6,22" fill="${COL.q}" stroke="${COL.qs}" stroke-width="2"/>`, 'Question'],
+    [box({ y: 10, h: 24, rx: 12, fill: COL.wait, stroke: COL.mute, dash: true }), 'Wait'],
+    [box({ y: 10, h: 24, rx: 12 }), 'Start or end'],
+    [box({ fill: COL.badf, stroke: COL.bad }) + `<text x="62" y="32" font-size="12" font-weight="800" fill="${COL.bad}" text-anchor="end">✗</text>`, 'People get stuck'],
+    [`<line x1="10" y1="22" x2="54" y2="22" stroke="${COL.line}" stroke-width="2"/>` + head(COL.line), 'Goes to'],
+    [`<line x1="10" y1="30" x2="54" y2="30" stroke="${COL.line}" stroke-width="2"/><path d="M60,30 l-9,-5 v10 z" fill="${COL.line}"/><text x="32" y="22" font-size="12" fill="${COL.mute}" text-anchor="middle">yes</text>`, 'An answer'],
+    [`<line x1="10" y1="22" x2="54" y2="22" stroke="${COL.loop}" stroke-width="2"/>` + head(COL.loop), 'Goes back'],
+    [box({ x: 4, y: 4, w: 50, h: 18, rx: 4, stroke: COL.mute }) + `<line x1="40" y1="22" x2="62" y2="40" stroke="${COL.mute}" stroke-width="2"/>`, 'Side note'],
+    [box({ x: 6, w: 28, fill: PAL.blue[0], stroke: PAL.blue[1] }) + box({ x: 40, w: 28, fill: PAL.green[0], stroke: PAL.green[1] }), 'What your key says'],
+  ].map(([g, t]) => `<li><svg viewBox="0 0 76 44" aria-hidden="true">${g}</svg><span>${t}</span></li>`).join('');
+  /* a first look round, once; the Walkthrough button brings it back */
+  const tour = window.ToolTour('dt-flow-tour', [
+    { at: '.fm-tabs', side: 'left', text: 'Work through these in order. <b>Now</b> is how people do it today, <b>Your version</b> is your redesign, and <b>What happened</b> fills in the table.' },
+    { at: '.fm-panel:not([hidden]) .fm-add', side: 'left', text: 'Add a row for everything the person does or waits for. Click a row to open its settings.' },
+    { at: '#stage', side: 'inside', text: 'Your diagram draws itself from those rows. Click anything on it to change it, and drag a box to move it.' },
+    { at: '[data-act="savebox"]', side: 'below', text: 'Your work stays in this browser. <b>Save</b> gives you text to keep. Paste it back later and carry on from where you stopped.' },
+    { at: '[data-act="shapes"]', side: 'below', text: 'Forgotten what a shape means? <b>?</b> shows them all.' },
+  ]);
+  renderAll();
+  view.fit($('slide'), 18, 2);
+})();
+
+
+</script>
+</body>
+</html>

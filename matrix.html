@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2×2 maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<header class="tb-bar">
+  <a class="tb-back" href="index.html">← All tools</a>
+  <h1 class="tb-name">2×2 maker</h1>
+  <span class="gt-msg" id="msg" role="status"></span>
+  <span class="tb-sp"></span>
+  <button type="button" class="tbtn" data-act="undo" id="undo" title="Undo (Ctrl or ⌘ Z)">Undo</button>
+  <button type="button" class="tbtn" data-act="redo" id="redo" title="Redo (Ctrl or ⌘ Shift Z)">Redo</button>
+  <button type="button" class="tbtn" data-act="savebox" aria-haspopup="dialog">Save</button>
+  <button type="button" class="tbtn pri" data-act="png">Copy the slide</button>
+  <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
+    <button type="button" data-act="dl">Download the slide as a PNG</button>
+    <button type="button" data-act="example">See the example</button>
+    <button type="button" data-act="clear">Empty this board</button>
+  </div></details>
+  <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
+</header>
+<div class="mx-tool">
+  <main class="mx-stage" id="stage" aria-label="The slide"></main>
+  <aside class="mx-side" aria-label="Edit">
+    <label for="board">Board</label>
+    <select id="board"></select>
+    <label for="title">Title</label>
+    <input id="title" type="text" placeholder="What this board decides">
+    <h2>Notes</h2>
+    <form id="addform"><label for="addnote">Add a note, then press Enter</label><input id="addnote" type="text" autocomplete="off"></form>
+    <ul class="mx-list" id="list"></ul>
+    <p class="mx-hint">Drag a note on the slide. With a note selected, the arrow keys move it too.</p>
+    <h2>Axes</h2>
+    <label for="xn">Across</label><input id="xn" type="text" data-ax="xn">
+    <div class="mx-two"><div><label for="xl">Left end</label><input id="xl" type="text" data-ax="xl"></div><div><label for="xh">Right end</label><input id="xh" type="text" data-ax="xh"></div></div>
+    <label for="yn">Up</label><input id="yn" type="text" data-ax="yn">
+    <div class="mx-two"><div><label for="yl">Bottom end</label><input id="yl" type="text" data-ax="yl"></div><div><label for="yh">Top end</label><input id="yh" type="text" data-ax="yh"></div></div>
+    <h2>Corners</h2>
+    <div class="mx-two"><div><label for="q0">Top left</label><input id="q0" type="text" data-q="0"></div><div><label for="q1">Top right</label><input id="q1" type="text" data-q="1"></div><div><label for="q2">Bottom left</label><input id="q2" type="text" data-q="2"></div><div><label for="q3">Bottom right</label><input id="q3" type="text" data-q="3"></div></div>
+  </aside>
+</div>
+<dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
+  <ul>
+    <li><b>Pick a board:</b> riskiest assumptions, value against effort, stakeholders, or your own. Each keeps its own notes.</li>
+    <li><b>Add notes</b> on the right. Long notes wrap and are never cut off.</li>
+    <li><b>Place them</b> by dragging, or select one and use the arrow keys (hold Shift for bigger steps).</li>
+    <li><b>Axes and corners</b> are yours to rename.</li>
+    <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+  </ul>
+  <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
+<div id="savehost"></div>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script>
+(function () {
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const KEY = 'dt-matrix', TAG = 'MATRIX1', W = 1920, H = 1080, NOTE_W = 300, FS = 22;
+  const P = { x: 170, y: 170, w: 1680, h: 790 };
+  const presets = {
+    risk: { label: 'Riskiest assumptions', xn: 'What we know', xl: 'Good evidence', xh: 'No evidence', yn: 'If we are wrong', yl: 'Little harm', yh: 'Serious harm', q: ['Keep an eye on it', 'Test this first', 'Leave it', 'Find out if it is cheap to'] },
+    value: { label: 'Value against effort', xn: 'Effort', xl: 'Little', xh: 'A lot', yn: 'Value to users', yl: 'Little', yh: 'A lot', q: ['Do first', 'Plan properly', 'Fit in if there is time', 'Drop'] },
+    stake: { label: 'Stakeholders', xn: 'Interest', xl: 'Low', xh: 'High', yn: 'Influence', yl: 'Low', yh: 'High', q: ['Keep satisfied', 'Work closely', 'Check in occasionally', 'Keep informed'] },
+    own: { label: 'My own', xn: 'Across', xl: 'Low', xh: 'High', yn: 'Up', yl: 'Low', yh: 'High', q: ['', '', '', ''] },
+  };
+  const blankBoard = k => { const p = presets[k]; return { title: '', xn: p.xn, xl: p.xl, xh: p.xh, yn: p.yn, yl: p.yl, yh: p.yh, q: p.q.slice(), notes: [] }; };
+  const blank = () => ({ cur: 'risk', boards: Object.fromEntries(Object.keys(presets).map(k => [k, blankBoard(k)])) });
+  const tidy = s => (s && s.boards && presets[s.cur] && Object.keys(presets).every(k => s.boards[k]) ? s : null);
+  let S = tidy(window.Slide.load(KEY)) || blank(), sel = null, uid = 1;
+  const nid = () => 'n' + (uid++) + '-' + Date.now().toString(36);
+  const hist = window.Slide.history(() => S, v => { S = tidy(v) || S; });
+  const B = () => S.boards[S.cur];
+  const save = () => window.Slide.store(KEY, S);
+  const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('msg').textContent = ''; }, 3500); };
+
+  $('savehost').innerHTML = window.Slide.saveDialog(TAG, 'board');
+  $('board').innerHTML = Object.keys(presets).map(k => `<option value="${k}">${esc(presets[k].label)}</option>`).join('');
+
+  /* a note's box, kept wholly inside the plot */
+  function noteBox(n) {
+    const lines = wrap(n.t, NOTE_W - 24, FS), h = lines.length * FS * 1.24 + 20, w = NOTE_W;
+    const x = Math.max(P.x + 4, Math.min(P.x + P.w - w - 4, P.x + n.x * P.w - w / 2)), y = Math.max(P.y + 4, Math.min(P.y + P.h - h - 4, P.y + (1 - n.y) * P.h - h / 2));
+    return { lines, x, y, w, h };
+  }
+  function slideSvg(forExport) {
+    const b = B(), titles = wrap(b.title || presets[S.cur].label, W - 112, 42, 700).slice();
+    const shift = (titles.length - 1) * 50;
+    let g = `<text x="56" y="74" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(presets[S.cur].label.toUpperCase())}</text>`;
+    g += `<text font-size="42" font-weight="700" fill="${INK}">${tspans(titles, 56, 124, 50)}</text>`;
+    const top = P.y + shift, ph = P.h - shift, mx = P.x + P.w / 2, my = top + ph / 2;
+    g += `<rect x="${P.x}" y="${top}" width="${P.w}" height="${ph}" fill="#F5F4F2"/><rect x="${mx}" y="${top}" width="${P.w / 2}" height="${ph / 2}" fill="${TONES.amber[0]}" opacity=".55"/>`;
+    g += `<line x1="${mx}" y1="${top}" x2="${mx}" y2="${top + ph}" stroke="${LINE}" stroke-width="2"/><line x1="${P.x}" y1="${my}" x2="${P.x + P.w}" y2="${my}" stroke="${LINE}" stroke-width="2"/><rect x="${P.x}" y="${top}" width="${P.w}" height="${ph}" fill="none" stroke="${INK}" stroke-width="2"/>`;
+    const corner = (t, x, y, anchor) => (t ? `<text x="${x}" y="${y}" font-size="24" font-weight="700" fill="${MUTE}" text-anchor="${anchor}">${esc(t)}</text>` : '');
+    g += corner(b.q[0], P.x + 16, top + 36, 'start') + corner(b.q[1], P.x + P.w - 16, top + 36, 'end') + corner(b.q[2], P.x + 16, top + ph - 16, 'start') + corner(b.q[3], P.x + P.w - 16, top + ph - 16, 'end');
+    const ax = 'font-size="21" fill="' + INK + '"';
+    g += `<text x="${P.x}" y="${top + ph + 34}" ${ax}>${esc(b.xl)}</text><text x="${mx}" y="${top + ph + 34}" ${ax} font-weight="700" text-anchor="middle">${esc(b.xn)} →</text><text x="${P.x + P.w}" y="${top + ph + 34}" ${ax} text-anchor="end">${esc(b.xh)}</text>`;
+    const vert = (t, y, anchor, extra = '') => `<text transform="translate(${P.x - 14} ${y}) rotate(-90)" ${ax} text-anchor="${anchor}" ${extra}>${esc(t)}</text>`;
+    g += vert(b.yl, top + ph, 'start') + vert(b.yn + ' →', my, 'middle', 'font-weight="700"') + vert(b.yh, top, 'end');
+    const area = { top, ph };
+    b.notes.forEach(n => {
+      const saved = { y: P.y, h: P.h }; P.y = area.top; P.h = area.ph; const r = noteBox(n); P.y = saved.y; P.h = saved.h;
+      const attrs = forExport ? '' : ` class="mx-note${sel === n.id ? ' on' : ''}" data-note="${n.id}" tabindex="0" role="button" aria-label="${esc(n.t)}. Use the arrow keys to move it."`;
+      g += `<g${attrs}><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="#fff" stroke="${TONES.blue[1]}" stroke-width="2"/><text font-size="${FS}" fill="${INK}">${tspans(r.lines, r.x + 12, r.y + 10 + FS * 0.92, FS * 1.24)}</text></g>`;
+    });
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family='${FONT}' id="${forExport ? 'x' : 'plot'}" role="group" aria-label="The 2×2"><rect width="${W}" height="${H}" fill="#fff"/>${g}</svg>`;
+  }
+  function drawSlide() { $('stage').innerHTML = slideSvg(false); }
+  function renderSide() {
+    const b = B(); $('board').value = S.cur; $('title').value = b.title;
+    ['xn', 'xl', 'xh', 'yn', 'yl', 'yh'].forEach(k => { $(k).value = b[k]; });
+    b.q.forEach((t, i) => { $('q' + i).value = t; });
+    $('list').innerHTML = b.notes.map(n => `<li><input type="text" data-n="${n.id}" value="${esc(n.t)}" aria-label="Note"><button type="button" data-act="del" data-id="${n.id}" aria-label="Remove ${esc(n.t)}">×</button></li>`).join('');
+  }
+  function chrome() { const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r; }
+  function renderAll() { armed = true; renderSide(); drawSlide(); chrome(); save(); }
+
+  /* where the next note lands: a loose grid across the middle, so nothing starts hidden */
+  function nextSpot() { const n = B().notes.length; return { x: 0.14 + (n % 4) * 0.24, y: 0.82 - (Math.floor(n / 4) % 4) * 0.22 }; }
+  $('addform').addEventListener('submit', e => { e.preventDefault(); const t = $('addnote').value.trim(); if (!t) return; hist.snap(); B().notes.push({ id: nid(), t, ...nextSpot() }); $('addnote').value = ''; renderAll(); $('addnote').focus(); });
+  $('board').addEventListener('change', e => { S.cur = e.target.value; sel = null; renderAll(); });
+
+  let armed = true;
+  document.addEventListener('focusin', e => { if (e.target.matches('.mx-side input')) armed = true; });
+  document.querySelector('.mx-side').addEventListener('input', e => {
+    const t = e.target; if (t.id === 'addnote' || t.id === 'board') return;
+    if (armed) { hist.snap(); armed = false; }
+    const b = B();
+    if (t.id === 'title') b.title = t.value;
+    if (t.dataset.ax) b[t.dataset.ax] = t.value;
+    if (t.dataset.q) b.q[+t.dataset.q] = t.value;
+    if (t.dataset.n) { const n = b.notes.find(x => x.id === t.dataset.n); if (n) n.t = t.value; }
+    drawSlide(); chrome(); save();
+  });
+
+  /* dragging, in slide units whatever size the slide is shown at */
+  let drag = null;
+  const toSlide = e => { const svg = $('plot'), m = svg.getScreenCTM().inverse(), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(m); return { x: q.x, y: q.y }; };
+  const area = () => { const shift = (wrap(B().title || presets[S.cur].label, W - 112, 42, 700).length - 1) * 50; return { top: P.y + shift, ph: P.h - shift }; };
+  $('stage').addEventListener('pointerdown', e => {
+    const g = e.target.closest('[data-note]'); if (!g) { if (sel) { sel = null; drawSlide(); } return; }
+    const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return;
+    const q = toSlide(e), a = area(); sel = n.id; hist.snap();
+    drag = { n, dx: P.x + n.x * P.w - q.x, dy: a.top + (1 - n.y) * a.ph - q.y, a, moved: false };
+    e.preventDefault(); drawSlide(); chrome();
+    const again = $('stage').querySelector(`[data-note="${n.id}"]`); if (again) again.focus({ preventScroll: true });
+  });
+  addEventListener('pointermove', e => { if (!drag) return; const q = toSlide(e), { n, a } = drag; n.x = Math.max(0, Math.min(1, (q.x + drag.dx - P.x) / P.w)); n.y = Math.max(0, Math.min(1, 1 - (q.y + drag.dy - a.top) / a.ph)); drag.moved = true; drawSlide(); });
+  addEventListener('pointerup', () => { if (!drag) return; const id = drag.n.id; drag = null; save(); const g = $('stage').querySelector(`[data-note="${id}"]`); if (g) g.focus({ preventScroll: true }); });
+  $('stage').addEventListener('keydown', e => {
+    const g = e.target.closest('[data-note]'); if (!g) return; const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key]; if (!d) return;
+    e.preventDefault(); const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return; hist.snap(); const k = e.shiftKey ? 0.1 : 0.02;
+    n.x = Math.max(0, Math.min(1, n.x + d[0] * k)); n.y = Math.max(0, Math.min(1, n.y + d[1] * k)); sel = n.id; drawSlide(); chrome(); save();
+    const again = $('stage').querySelector(`[data-note="${n.id}"]`); if (again) again.focus({ preventScroll: true });
+  });
+
+  /* the same missed bin case as the other tools */
+  function example() {
+    const b = blankBoard('risk'); b.title = 'Report a missed bin collection: what must be true';
+    b.notes = [
+      ['People who call would use a shorter form', 0.72, 0.8], ['Crews can act on reports the same day', 0.86, 0.62], ['Round data is current', 0.62, 0.66],
+      ['Most reports come from the website', 0.2, 0.6], ['People want a text message update', 0.68, 0.26], ['Depots will share job sheets', 0.3, 0.26],
+    ].map(([t, x, y]) => ({ id: nid(), t, x, y }));
+    return b;
+  }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act;
+    const png = () => window.Slide.pngOf(slideSvg(true), W, H), name = `2x2-${S.cur}.png`;
+    if (act === 'undo') { if (hist.undo()) renderAll(); return; }
+    if (act === 'redo') { if (hist.redo()) renderAll(); return; }
+    if (act === 'del') { hist.snap(); B().notes = B().notes.filter(n => n.id !== b.dataset.id); return renderAll(); }
+    if (act === 'png') return window.Slide.copyPicture(png(), name, say);
+    if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), name); } catch (x) { say('That did not work in this browser.'); } return; }
+    if (act === 'example') { b.closest('details').open = false; hist.snap(); S.cur = 'risk'; S.boards.risk = example(); say('The example is in. Undo brings your work back.'); return renderAll(); }
+    if (act === 'clear') { b.closest('details').open = false; hist.snap(); S.boards[S.cur] = blankBoard(S.cur); say('Emptied. Undo brings it back.'); return renderAll(); }
+    if (act === 'help') return $('helpdlg').showModal();
+    if (act === 'savebox') { $('savecode').value = window.Slide.encode(TAG, S); $('savemsg').textContent = ''; return $('savedlg').showModal(); }
+    if (act === 'savecopy') return window.Slide.copyText($('savecode').value, t => { $('savemsg').textContent = t; });
+    if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
+  });
+  addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+  renderAll();
+})();
+</script>
+</body>
+</html>

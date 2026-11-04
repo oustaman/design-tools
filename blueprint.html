@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprint maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css">
+<link rel="stylesheet" href="tool-grid.css">
+</head>
+<body>
+<script src="tool-canvas.js"></script>
+<script src="tool-slide.js"></script>
+<script src="tool-grid.js"></script>
+<script>
+(function () {
+  const lanes = () => [
+    ['User actions', 'blue', 'Line of interaction'],
+    ['Front stage', 'green', 'Line of visibility'],
+    ['Back stage', 'grey'],
+    ['Systems and data', 'white'],
+    ['Policy and rules', 'amber'],
+    ['Pain points', 'red'],
+    ['Access and other routes', 'white'],
+    ['Outcome for users', 'blue', null, true],
+    ['Outcome for the provider', 'green', null, true],
+    ['Measures', 'white', null, true],
+  ].map(([name, tone, line, hidden], i) => ({ id: 'r' + i, name, tone, line: line || undefined, hidden: !!hidden }));
+  const blank = () => ({ title: '', view: 'both', cells: {}, rows: lanes(), cols: ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'].map((name, i) => ({ id: 'c' + i, name })) });
+  /* the same missed bin case as the Flow maker and the Screen maker */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection';
+    s.cols = ['Notice', 'Find out what to do', 'Report it', 'Wait', 'Bin collected'].map((name, i) => ({ id: 'c' + i, name }));
+    const fill = {
+      0: ['Sees the bin is still full', 'Searches the council website', 'Enters a postcode\nPicks the bin type', 'Checks for an update', 'Puts the bin back'],
+      1: ['', 'Bin day page', 'Report form\nConfirmation with a reference', 'Text message when a crew is booked', 'Text message: collected'],
+      2: ['', '', 'Contact centre checks the round', 'Depot adds the address to a return round', 'Crew marks the job done'],
+      3: ['', 'Collection calendar', 'Case system\nRound data', 'Depot job sheet', 'In-cab device'],
+      4: ['Collection days set by the council', '', 'Return within two working days', '', ''],
+      5: ['Unsure if it was missed or early', 'Calendar and website disagree', 'Asked for details the council holds', 'No news for two days', ''],
+      6: ['', 'Phone line for people who cannot use the form', 'Assisted collection flagged on the address', 'Update by letter or phone on request', ''],
+      7: ['', 'Knows what to do within a minute', 'Reports it once', 'Knows when it will happen', 'Bin emptied'],
+      8: ['', 'Fewer calls', 'Reports reach the depot the same day', '', 'Fewer repeat reports'],
+      9: ['', 'Share who finish online', 'Time to report', 'Calls chasing a report', 'Share collected within two days'],
+    };
+    Object.keys(fill).forEach(r => fill[r].forEach((t, c) => { if (t) s.cells[`r${r}|c${c}`] = t; }));
+    return s;
+  }
+  window.GridTool({
+    key: 'dt-blueprint', tag: 'BLUEPRINT1', name: 'Blueprint maker', what: 'blueprint', kicker: 'SERVICE BLUEPRINT',
+    colWord: 'stage', laneWord: 'lane', colName: n => 'Stage ' + n, titleHint: 'The service, in the words of what someone is trying to get done',
+    blank, example,
+    help: `<ul>
+      <li><b>Stages</b> run across, in the order the person meets them.</li>
+      <li><b>Lanes</b> run down. Type one note per line in a cell, and each line becomes its own note on the slide.</li>
+      <li><b>On slide</b> shows or hides a lane. The outcome and measure lanes start hidden, so tick those and untick the others for a second slide about outcomes.</li>
+      <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+      <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+    </ul>`,
+  });
+})();
+</script>
+</body>
+</html>

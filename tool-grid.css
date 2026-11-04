@@ -1,0 +1,50 @@
+/* The slide tools: an editor above, the live slide below. */
+.dlg-ta{font:inherit;font-size:0.8rem;width:100%;padding:6px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink);margin-bottom:6px}
+.gt-msg{font-size:0.78rem;color:var(--ok);min-width:0}
+
+.gt-main{flex:1;min-height:0;display:flex;flex-direction:column}
+.gt-edit{flex:1 1 55%;min-height:0;overflow:auto;background:var(--surface);border-bottom:1px solid var(--line)}
+.gt-prev{flex:1 1 45%;min-height:0;overflow:auto;background:var(--stage);padding:12px;position:relative}
+.gt-main.slide .gt-edit{display:none}
+.gt-main.slide .gt-prev{flex:1}
+.gt-main.edit .gt-prev{display:none}
+.gt-slide{display:block;margin:0 auto;box-shadow:0 2px 14px rgba(0,0,0,.18);background:#fff;max-width:100%;height:auto}
+.gt-note{font-size:0.78rem;color:var(--ink-2);margin:0 0 8px;text-align:center}
+.gt-note.warn{color:var(--warn);font-weight:640}
+
+.gt-top{display:flex;gap:8px;align-items:center;padding:8px 12px;position:sticky;left:0;flex-wrap:wrap}
+.gt-top label{font-size:0.78rem;font-weight:640;white-space:nowrap}
+.gt-top input{font:inherit;font-size:0.9rem;flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink)}
+
+.gt-grid{border-collapse:separate;border-spacing:0;margin:0 12px 12px}
+.gt-grid th,.gt-grid td{vertical-align:top;padding:4px;border-bottom:1px solid var(--line)}
+.gt-grid thead th{position:sticky;top:0;background:var(--surface-2);z-index:3;min-width:190px}
+.gt-grid thead th:first-child,.gt-grid tbody th{position:sticky;left:0;z-index:2;background:var(--surface-2);width:190px;min-width:190px;text-align:left}
+.gt-grid thead th:first-child{z-index:4;font-size:0.76rem;font-weight:640;color:var(--ink-2)}
+.gt-grid input[type=text]{font:inherit;font-size:0.84rem;font-weight:640;width:100%;padding:4px 6px;border:1px solid var(--line-2);border-radius:5px;background:var(--surface);color:var(--ink)}
+.gt-grid textarea{font:inherit;font-size:0.84rem;width:100%;min-height:58px;padding:5px 6px;border:1px solid var(--line-2);border-radius:5px;color:var(--ink);resize:vertical;display:block}
+.gt-ctl{display:flex;gap:3px;margin-top:3px;align-items:center;flex-wrap:wrap}
+.gt-ctl button{font:inherit;font-size:0.72rem;min-width:26px;min-height:24px;padding:0 5px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);cursor:pointer}
+.gt-ctl button:hover:not(:disabled){border-color:var(--lec);color:var(--lec)}
+.gt-ctl button:disabled{opacity:.4;cursor:default}
+.gt-ctl label{font-size:0.72rem;display:inline-flex;gap:3px;align-items:center;margin-right:auto;cursor:pointer}
+tr.off td,tr.off th input[type=text]{opacity:.5}
+.gt-add{position:sticky;left:0;display:flex;gap:6px;padding:0 12px 12px}
+
+/* the 2×2 maker */
+.mx-tool{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px}
+.mx-stage{min-width:0;min-height:0;overflow:auto;background:var(--stage);padding:12px}
+.mx-stage svg{display:block;margin:0 auto;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18);max-width:100%;height:auto;touch-action:none}
+.mx-note{cursor:grab}
+.mx-note:focus{outline:none}
+.mx-note:focus rect,.mx-note.on rect{stroke:#8C2437;stroke-width:4}
+.mx-side{overflow-y:auto;background:var(--surface);border-left:1px solid var(--line);padding:10px 12px}
+.mx-side h2{font-size:0.82rem;margin:12px 0 4px}
+.mx-side label{display:block;font-size:0.76rem;font-weight:640;margin:6px 0 2px}
+.mx-side input,.mx-side select{font:inherit;font-size:0.84rem;width:100%;padding:5px 7px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink)}
+.mx-two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mx-list{list-style:none;margin:6px 0;padding:0}
+.mx-list li{display:flex;gap:4px;margin-bottom:4px}
+.mx-list button{font:inherit;font-size:0.76rem;min-width:28px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);cursor:pointer}
+.mx-hint{font-size:0.76rem;color:var(--ink-2);margin:4px 0}
+@media (max-width:820px){.mx-tool{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 42%}.mx-side{border-left:0;border-top:1px solid var(--line)}}

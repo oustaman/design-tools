@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design tools</title>
+<style>
+  :root{--bg:#F5F4F2;--surface:#FFFFFF;--ink:#1A1618;--ink-2:#514B4A;--line:#DFDBD7;--link:#8C2437}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1A1618;--surface:#262122;--ink:#F5F4F2;--ink-2:#C9C3C0;--line:#4D4847;--link:#F0A9B5}}
+  :root[data-theme="dark"]{--bg:#1A1618;--surface:#262122;--ink:#F5F4F2;--ink-2:#C9C3C0;--line:#4D4847;--link:#F0A9B5}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;line-height:1.5}
+  main{max-width:760px;margin:0 auto;padding:40px 16px}
+  h1{font-size:1.7rem;margin:0 0 6px;letter-spacing:-0.01em}
+  .lede{color:var(--ink-2);margin:0 0 26px}
+  ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  a.tool{display:block;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;text-decoration:none;color:inherit}
+  a.tool:hover{border-color:var(--link)}
+  a.tool:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+  a.tool b{display:block;color:var(--link);font-size:1.02rem}
+  a.tool span{color:var(--ink-2);font-size:0.92rem}
+  footer{color:var(--ink-2);font-size:0.86rem;margin-top:26px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Design tools</h1>
+  <p class="lede">Small tools for service design work. Each one makes a 16:9 slide you can copy into a deck.</p>
+  <ul>
+    <li><a class="tool" href="flow.html"><b>Flow maker</b><span>A journey as it is now and as you would change it, with a table of what happened to every step.</span></a></li>
+    <li><a class="tool" href="blueprint.html"><b>Blueprint maker</b><span>A service blueprint: what people do, what they see, what happens behind it, and where it goes wrong.</span></a></li>
+    <li><a class="tool" href="screen-maker.html"><b>Screen maker</b><span>Wireframes for phone or desktop, built from ready-made pieces, with numbered notes.</span></a></li>
+    <li><a class="tool" href="matrix.html"><b>2×2 maker</b><span>Riskiest assumptions, value against effort, stakeholders, or your own axes.</span></a></li>
+    <li><a class="tool" href="plan.html"><b>Plan maker</b><span>Phases against what you do, what you need to learn, outcomes, measures and risks.</span></a></li>
+  </ul>
+  <footer>Your work stays in your browser. Each tool's Save button gives you text to keep and paste back later.</footer>
+</main>
+</body>
+</html>
