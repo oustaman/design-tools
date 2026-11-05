@@ -7,7 +7,7 @@ window.JOURNEYS = (function () {
   const BACK = n => ({ '‹ Back#0': '‹ Back', 'Step _ of _#0': `Step ${n} of 4` });
   const bin = [
     { name: 'Start: report a missed bin', kind: 'J1', job: 'Says the one rule, and lets you start.', pieces: [
-      ['service-header', 0, { 'Service name#0': 'Liverpool City Council' }],
+      ['service-header', 0, { 'Service name#0': 'Brookmere Council' }],
       ['title-intro', 1, { 'Title#0': 'Report a missed bin', 'A sentence or two that says what this is for.#0': 'Use this if your bin was not emptied on its collection day.' }],
       ['notice', 3, { 'Something to know before you start.#0': 'Report it by 2pm on the next working day and we will come back for it.' }],
       ['button-link', 5, { 'Continue#0': 'Start', 'Cancel#0': 'Bins we cannot collect, and why' }],
@@ -33,11 +33,11 @@ window.JOURNEYS = (function () {
     { name: 'Check your report', kind: 'J2', job: 'Shows every answer back, each with a Change link.', pieces: [
       ['progress-header', 0, BACK(4)],
       ['page-title', 1, { 'Page title#0': 'Check your report' }],
-      ['summary', 2, { 'Question#0': 'Address', 'Your answer#0': '11 Dale Street, L2 3SW', 'Question#1': 'Bin', 'Your answer#1': 'Blue bin (recycling)', 'Question#2': 'Due', 'Your answer#2': 'Tue 20 Oct', 'Question#3': 'Updates', 'Your answer#3': 'Text to 07700 900000' }],
+      ['summary', 2, { 'Question#0': 'Address', 'Your answer#0': '14 Orchard Row, ZZ1 4AB', 'Question#1': 'Bin', 'Your answer#1': 'Blue bin (recycling)', 'Question#2': 'Due', 'Your answer#2': 'Tue 20 Oct', 'Question#3': 'Updates', 'Your answer#3': 'Text to 07700 900000' }],
       ['button', 7, { 'Continue#0': 'Send report' }],
     ] },
     { name: 'Report sent', kind: 'J3', job: 'Gives a reference, a date, and what to do if it does not happen.', pieces: [
-      ['service-header', 0, { 'Service name#0': 'Liverpool City Council' }],
+      ['service-header', 0, { 'Service name#0': 'Brookmere Council' }],
       ['success', 1, { 'Done#0': 'Report sent', 'Your reference: ABC123#0': 'Your reference MB-48213' }],
       ['title-intro', 4, { 'Title#0': 'What happens next', 'A sentence or two that says what this is for.#0': 'We will empty your blue bin by Thursday 22 October. Leave it out at the kerb until then.' }],
       ['notice', 7, { 'Something to know before you start.#0': 'Still full on Friday? Report it again with your reference, and we will escalate it.' }],
