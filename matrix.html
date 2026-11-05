@@ -25,7 +25,7 @@
   <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
 </header>
 <div class="mx-tool">
-  <main class="mx-stage" id="stage" aria-label="The slide"></main>
+  <main class="mx-stage" aria-label="The slide"><div id="stage"></div></main>
   <aside class="mx-side" aria-label="Edit">
     <label for="board">Board</label>
     <select id="board"></select>
@@ -50,6 +50,7 @@
     <li><b>Add notes</b> on the right. Long notes wrap and are never cut off.</li>
     <li><b>Place them</b> by dragging, or select one and use the arrow keys (hold Shift for bigger steps).</li>
     <li><b>Axes and corners</b> are yours to rename.</li>
+    <li><b>On the slide,</b> click the title, a corner or an axis to change its words. Click a selected note again to change its words, or press Enter on it.</li>
     <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
   </ul>
   <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
@@ -59,7 +60,7 @@
 <script src="tool-slide.js"></script>
 <script>
 (function () {
-  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
   const KEY = 'dt-matrix', TAG = 'MATRIX1', W = 1920, H = 1080, NOTE_W = 300, FS = 22;
   const P = { x: 170, y: 170, w: 1680, h: 790 };
   const presets = {
@@ -97,14 +98,18 @@
     g += `<line x1="${mx}" y1="${top}" x2="${mx}" y2="${top + ph}" stroke="${LINE}" stroke-width="2"/><line x1="${P.x}" y1="${my}" x2="${P.x + P.w}" y2="${my}" stroke="${LINE}" stroke-width="2"/><rect x="${P.x}" y="${top}" width="${P.w}" height="${ph}" fill="none" stroke="${INK}" stroke-width="2"/>`;
     const corner = (t, x, y, anchor) => (t ? `<text x="${x}" y="${y}" font-size="24" font-weight="700" fill="${MUTE}" text-anchor="${anchor}">${esc(t)}</text>` : '');
     g += corner(b.q[0], P.x + 16, top + 36, 'start') + corner(b.q[1], P.x + P.w - 16, top + 36, 'end') + corner(b.q[2], P.x + 16, top + ph - 16, 'start') + corner(b.q[3], P.x + P.w - 16, top + ph - 16, 'end');
-    const ax = 'font-size="21" fill="' + INK + '"';
-    g += `<text x="${P.x}" y="${top + ph + 34}" ${ax}>${esc(b.xl)}</text><text x="${mx}" y="${top + ph + 34}" ${ax} font-weight="700" text-anchor="middle">${esc(b.xn)} →</text><text x="${P.x + P.w}" y="${top + ph + 34}" ${ax} text-anchor="end">${esc(b.xh)}</text>`;
+    if (!forExport) {
+      g += hit('title', 56, 88, W - 112, titles.length * 50 + 4, 42, 700, 'the title');
+      g += hit('q0', P.x, top, P.w / 2, 52, 24, 700, 'the top left corner') + hit('q1', mx, top, P.w / 2, 52, 24, 700, 'the top right corner') + hit('q2', P.x, top + ph - 52, P.w / 2, 52, 24, 700, 'the bottom left corner') + hit('q3', mx, top + ph - 52, P.w / 2, 52, 24, 700, 'the bottom right corner');
+    }
+    const ax = 'font-size="21" fill="' + INK + '"', on = (k, t) => forExport ? '' : `data-edit="${k}" data-fs="21" tabindex="0" role="button" aria-label="Edit ${esc(t)}"`;
+    g += `<text ${on('xl', b.xl)} x="${P.x}" y="${top + ph + 34}" ${ax}>${esc(b.xl)}</text><text ${on('xn', b.xn)} x="${mx}" y="${top + ph + 34}" ${ax} font-weight="700" text-anchor="middle">${esc(b.xn)} →</text><text ${on('xh', b.xh)} x="${P.x + P.w}" y="${top + ph + 34}" ${ax} text-anchor="end">${esc(b.xh)}</text>`;
     const vert = (t, y, anchor, extra = '') => `<text transform="translate(${P.x - 14} ${y}) rotate(-90)" ${ax} text-anchor="${anchor}" ${extra}>${esc(t)}</text>`;
-    g += vert(b.yl, top + ph, 'start') + vert(b.yn + ' →', my, 'middle', 'font-weight="700"') + vert(b.yh, top, 'end');
+    g += vert(b.yl, top + ph, 'start', on('yl', b.yl)) + vert(b.yn + ' →', my, 'middle', 'font-weight="700" ' + on('yn', b.yn)) + vert(b.yh, top, 'end', on('yh', b.yh));
     const area = { top, ph };
     b.notes.forEach(n => {
       const saved = { y: P.y, h: P.h }; P.y = area.top; P.h = area.ph; const r = noteBox(n); P.y = saved.y; P.h = saved.h;
-      const attrs = forExport ? '' : ` class="mx-note${sel === n.id ? ' on' : ''}" data-note="${n.id}" tabindex="0" role="button" aria-label="${esc(n.t)}. Use the arrow keys to move it."`;
+      const attrs = forExport ? '' : ` class="mx-note${sel === n.id ? ' on' : ''}" data-note="${n.id}" data-edit="note:${n.id}" data-fs="${FS}" tabindex="0" role="button" aria-label="${esc(n.t)}. Use the arrow keys to move it."`;
       g += `<g${attrs}><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="#fff" stroke="${TONES.blue[1]}" stroke-width="2"/><text font-size="${FS}" fill="${INK}">${tspans(r.lines, r.x + 12, r.y + 10 + FS * 0.92, FS * 1.24)}</text></g>`;
     });
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family='${FONT}' id="${forExport ? 'x' : 'plot'}" role="group" aria-label="The 2×2"><rect width="${W}" height="${H}" fill="#fff"/>${g}</svg>`;
@@ -142,15 +147,15 @@
   const toSlide = e => { const svg = $('plot'), m = svg.getScreenCTM().inverse(), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(m); return { x: q.x, y: q.y }; };
   const area = () => { const shift = (wrap(B().title || presets[S.cur].label, W - 112, 42, 700).length - 1) * 50; return { top: P.y + shift, ph: P.h - shift }; };
   $('stage').addEventListener('pointerdown', e => {
-    const g = e.target.closest('[data-note]'); if (!g) { if (sel) { sel = null; drawSlide(); } return; }
+    const g = e.target.closest('[data-note]'); if (!g) { if (sel) { sel = null; const was = $('stage').querySelector('.mx-note.on'); if (was) was.classList.remove('on'); } return; }
     const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return;
-    const q = toSlide(e), a = area(); sel = n.id; hist.snap();
-    drag = { n, dx: P.x + n.x * P.w - q.x, dy: a.top + (1 - n.y) * a.ph - q.y, a, moved: false };
+    const q = toSlide(e), a = area(), again0 = sel === n.id; sel = n.id; hist.snap();
+    drag = { n, again: again0, dx: P.x + n.x * P.w - q.x, dy: a.top + (1 - n.y) * a.ph - q.y, a, moved: false };
     e.preventDefault(); drawSlide(); chrome();
     const again = $('stage').querySelector(`[data-note="${n.id}"]`); if (again) again.focus({ preventScroll: true });
   });
   addEventListener('pointermove', e => { if (!drag) return; const q = toSlide(e), { n, a } = drag; n.x = Math.max(0, Math.min(1, (q.x + drag.dx - P.x) / P.w)); n.y = Math.max(0, Math.min(1, 1 - (q.y + drag.dy - a.top) / a.ph)); drag.moved = true; drawSlide(); });
-  addEventListener('pointerup', () => { if (!drag) return; const id = drag.n.id; drag = null; save(); const g = $('stage').querySelector(`[data-note="${id}"]`); if (g) g.focus({ preventScroll: true }); });
+  addEventListener('pointerup', () => { if (!drag) return; const id = drag.n.id, edit = drag.again && !drag.moved; drag = null; save(); if (edit) { onSlide.open('note:' + id); return; } const g = $('stage').querySelector(`[data-note="${id}"]`); if (g) g.focus({ preventScroll: true }); });
   $('stage').addEventListener('keydown', e => {
     const g = e.target.closest('[data-note]'); if (!g) return; const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key]; if (!d) return;
     e.preventDefault(); const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return; hist.snap(); const k = e.shiftKey ? 0.1 : 0.02;
@@ -183,6 +188,16 @@
     if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
   });
   addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+  const KEYS = ['xn', 'xl', 'xh', 'yn', 'yl', 'yh'];
+  const noteOf = k => B().notes.find(n => n.id === k.slice(5));
+  const onSlide = window.Slide.editOnSlide({
+    host: $('stage'),
+    read: k => k === 'title' ? B().title : k[0] === 'q' ? B().q[+k[1]] : KEYS.includes(k) ? B()[k] : (noteOf(k) || {}).t,
+    write: (k, v) => { const t = v.replace(/\n/g, ' '), b = B(); if (k === 'title') b.title = t; else if (k[0] === 'q') b.q[+k[1]] = t; else if (KEYS.includes(k)) b[k] = t; else { const n = noteOf(k); if (n) n.t = t; } },
+    first: () => hist.snap(),
+    after: () => { renderSide(); drawSlide(); chrome(); save(); },
+    clicks: k => !k.startsWith('note:'),
+  });
   renderAll();
 })();
 </script>

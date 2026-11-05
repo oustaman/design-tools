@@ -94,5 +94,50 @@ window.Slide = (function () {
     <div class="dlg-acts"><button class="tbtn" value="close">Close</button></div>
   </form></dialog>`;
 
-  return { FONT, INK, MUTE, LINE, TONES, esc, $, width, wrap, tspans, pngOf, download, copyPicture, copyText, copyTable, encode, decode, load, store, history, saveDialog };
+  /* an invisible target over some words on the slide; it has no effect on the exported picture */
+  const hit = (key, x, y, w, h, fs, wt = 400, label = 'these words') => `<rect data-edit="${esc(key)}" data-fs="${fs}" data-wt="${wt}" x="${(+x).toFixed(1)}" y="${(+y).toFixed(1)}" width="${Math.max(1, w).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" fill="transparent" tabindex="0" role="button" aria-label="Edit ${esc(label)}"/>`;
+  /* Editing on the slide: click anything marked data-edit and type over it. The slide redraws as you
+     type and the field stays above it, in anchor, because the redraw replaces what is in host.
+     read(key), write(key, text), first() before the first change, after() to redraw; choices(key) gives
+     words to pick from, multi(key) says Enter adds a line, enter(key) may return the next key to open,
+     clicks(key) false leaves a click to the tool. */
+  function editOnSlide({ host, anchor = host.parentElement, read, write, first, after, choices = () => null, multi = () => false, enter = () => null, clicks = () => true }) {
+    let cur = null;
+    const find = key => host.querySelector(`[data-edit="${key}"]`);
+    function place() {
+      const t = cur && find(cur.key); if (!t) { close(); return; }
+      const f = cur.field, svg = t.ownerSVGElement, r = t.getBoundingClientRect(), a = anchor.getBoundingClientRect(), k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+      const w = Math.min(Math.max(r.width, 220), anchor.clientWidth - 8), left = Math.max(4, Math.min(r.left - a.left + anchor.scrollLeft - anchor.clientLeft, anchor.scrollWidth - w - 4));
+      f.style.left = left + 'px'; f.style.top = (r.top - a.top + anchor.scrollTop - anchor.clientTop) + 'px'; f.style.width = w + 'px';
+      f.style.fontSize = Math.max(14, (+t.dataset.fs || 20) * k) + 'px'; f.style.fontWeight = t.dataset.wt || 400;
+      if (f.tagName === 'TEXTAREA') { f.style.height = 'auto'; f.style.height = Math.max(r.height, f.scrollHeight + 4) + 'px'; }
+    }
+    function close(refocus) {
+      if (!cur) return; const { key, field } = cur; cur = null; field.remove();
+      if (refocus) { const t = find(key); if (t) t.focus({ preventScroll: true }); }
+    }
+    const change = value => { if (!cur.touched) { cur.touched = true; first(); } write(cur.key, value); after(); place(); };
+    function next(by) { const all = [...host.querySelectorAll('[data-edit]')], i = all.findIndex(t => t.dataset.edit === cur.key), t = all[i + by]; if (t) open(t.dataset.edit); else close(true); }
+    function open(key) {
+      close(); const words = choices(key), field = document.createElement(words ? 'select' : 'textarea');
+      field.className = 'sl-inl'; field.setAttribute('aria-label', 'Edit the words on the slide');
+      if (words) { field.innerHTML = `<option value="">Not set</option>${words.map(w => `<option>${esc(w)}</option>`).join('')}`; } else { field.rows = 1; field.spellcheck = true; }
+      field.value = read(key) || '';
+      cur = { key, field, touched: false }; anchor.append(field); place(); field.focus({ preventScroll: true });
+      if (words) { try { field.showPicker(); } catch (e) {} } else field.setSelectionRange(field.value.length, field.value.length);
+      field.addEventListener(words ? 'change' : 'input', () => { if (cur && cur.field === field) change(field.value); });
+      field.addEventListener('blur', () => { if (cur && cur.field === field) close(); });
+      /* stays in the field, so undo here is the field's own */
+      field.addEventListener('keydown', e => { e.stopPropagation();
+        if (e.key === 'Escape') { e.preventDefault(); close(true); }
+        else if (e.key === 'Tab') { e.preventDefault(); next(e.shiftKey ? -1 : 1); }
+        else if (e.key === 'Enter' && !words && (e.metaKey || e.ctrlKey || !multi(key))) { e.preventDefault(); const n = !(e.metaKey || e.ctrlKey) && enter(key); if (n) open(n); else close(true); }
+      });
+    }
+    host.addEventListener('click', e => { const t = e.target.closest('[data-edit]'); if (t && clicks(t.dataset.edit)) open(t.dataset.edit); });
+    host.addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; const t = e.target.closest('[data-edit]'); if (t) { e.preventDefault(); open(t.dataset.edit); } });
+    return { open, close };
+  }
+
+  return { hit, editOnSlide, FONT, INK, MUTE, LINE, TONES, esc, $, width, wrap, tspans, pngOf, download, copyPicture, copyText, copyTable, encode, decode, load, store, history, saveDialog };
 })();

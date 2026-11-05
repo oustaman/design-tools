@@ -32,12 +32,13 @@
     <div class="cv-pick"><label for="tpl">Canvas</label><select id="tpl"></select><label class="cv-check"><input id="prompts" type="checkbox"> Show the questions on the slide</label><span id="credit"></span></div>
     <div id="fields"></div>
   </section>
-  <section class="gt-prev" aria-label="The slide"><p class="gt-note" id="fit" role="status"></p><div id="slide"></div></section>
+  <section class="gt-prev" aria-label="The slide"><p class="gt-note"><span id="fit" role="status"></span> <span class="gt-tip">Click any words on the slide to change them.</span></p><div id="slide"></div></section>
 </div>
 <dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
   <ul>
     <li><b>Pick a canvas.</b> The fields and their layout change to suit it, and each canvas keeps its own words when you switch.</li>
     <li><b>Each field has a question</b> to help you think. The words are yours: type one note per line, and each line becomes its own note on the slide.</li>
+    <li><b>Click any field on the slide</b> to change its words there. Enter starts a new note, Tab moves to the next field, and Esc finishes.</li>
     <li><b>Show the questions on the slide</b> to print a blank worksheet for a workshop or a class.</li>
     <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
     <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
@@ -49,7 +50,7 @@
 <script src="tool-slide.js"></script>
 <script>
 (function () {
-  const { FONT, INK, MUTE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const { FONT, INK, MUTE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
   const KEY = 'dt-canvas', TAG = 'CANVAS1', W = 1920, H = 1080, M = 56, GAP = 10, READABLE = 18, BIG = 26, SMALL = 14;
   /* A template is its name, the size of its grid, how tall each row is, and its fields:
      [id, name, question, tone, column, row, columns across, rows down]. A new canvas is one more entry here. */
@@ -146,8 +147,10 @@
         ny += n.h + a.gap;
       });
     });
+    g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
+    l.laid.forEach(({ f, x, y, w, h: fh }) => { g += hit('field:' + f.id, x, y, w, fh, l.fs, 400, f.name); });
     if (t.credit) g += `<text x="${W - M}" y="${h - 22}" font-size="18" fill="${MUTE}" text-anchor="end">${esc(t.credit)}</text>`;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="img" aria-label="${esc(B().title || t.label)}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="group" aria-label="${esc(B().title || t.label)}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
     $('slide').innerHTML = svg;
     const note = $('fit');
     note.classList.toggle('warn', l.fs < READABLE || h > H);
@@ -212,6 +215,14 @@
     if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
   });
   addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+  window.Slide.editOnSlide({
+    host: $('slide'),
+    read: k => k === 'title' ? B().title : B().cells[k.slice(6)],
+    write: (k, v) => { if (k === 'title') B().title = v.replace(/\n/g, ' '); else B().cells[k.slice(6)] = v; },
+    first: () => hist.snap(),
+    after: () => { $('title').value = B().title; renderFields(); chrome(); draw(); save(); },
+    multi: k => k !== 'title',
+  });
   renderAll();
 })();
 </script>

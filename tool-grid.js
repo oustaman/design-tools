@@ -5,7 +5,7 @@
    A column can have w (its share of the width), tone (over the lane's), and choice (words to pick from);
    a lane can have scale (words from best to worst, drawn as a line across the columns). */
 window.GridTool = function (cfg) {
-  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
   const W = 1920, H = 1080, M = 56, LAB = 200, READABLE = 18, BIG = 26, SMALL = 14;
   let uid = 1; const nid = p => p + (uid++) + '-' + Date.now().toString(36);
 
@@ -48,10 +48,11 @@ window.GridTool = function (cfg) {
       <div id="grid"></div>
       <div class="gt-add"><button type="button" class="tbtn xs" data-act="addcol">+ Add a ${esc(cfg.colWord)}</button><button type="button" class="tbtn xs" data-act="addrow">+ Add a ${esc(cfg.laneWord)}</button></div>
     </section>
-    <section class="gt-prev" aria-label="The slide"><p class="gt-note" id="fit" role="status"></p><div id="slide"></div></section>
+    <section class="gt-prev" aria-label="The slide"><p class="gt-note"><span id="fit" role="status"></span> <span class="gt-tip">Click any words on the slide to change them.</span></p><div id="slide"></div></section>
   </div>
   ${window.Slide.saveDialog(cfg.tag, cfg.what)}
   <dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>${cfg.help}
+    <p><b>Click any words on the slide</b> to change them there. Tab moves to the next, and Esc finishes. In a cell, Enter starts a new note.</p>
     <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
     <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>`);
 
@@ -61,7 +62,7 @@ window.GridTool = function (cfg) {
     const rows = laneRows(), n = Math.max(1, S.cols.length), lh = fs * 1.24, padX = Math.round(fs * 0.5), padY = Math.round(fs * 0.38), gap = Math.round(fs * 0.34);
     const room = W - 2 * M - LAB - 8 * n, shares = S.cols.reduce((a, c) => a + (c.w || 1), 0) || 1, widths = S.cols.map(c => room * (c.w || 1) / shares), xs = widths.map((_, i) => M + LAB + widths.slice(0, i).reduce((a, b) => a + b + 8, 0));
     const titleLines = wrap(S.title, W - 2 * M, 42, 700);
-    let y = M + 30 + titleLines.length * 50 + 14;
+    let y = M + 30 + Math.max(1, titleLines.length) * 50 + 14;
     const headFs = Math.max(fs, 18), heads = S.cols.map((c, i) => wrap(c.name, widths[i] - 16, headFs, 700)), headH = Math.max(1, ...heads.map(h => h.length)) * headFs * 1.2 + 16;
     const top = y; y += headH + 8;
     const laid = rows.map(r => {
@@ -113,7 +114,14 @@ window.GridTool = function (cfg) {
         g += `<rect x="${right - tw}" y="${ly - 13}" width="${tw}" height="26" fill="#fff"/><text x="${right - 10}" y="${ly + 6}" font-size="17" font-weight="700" fill="${MUTE}" text-anchor="end">${esc(row.r.line)}</text>`;
       }
     });
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="img" aria-label="${esc(S.title || cfg.name)}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
+    /* what can be clicked, on top of everything else */
+    g += hit('title', M, M + 34, right - M, Math.max(1, l.titleLines.length) * 50 + 4, 42, 700, 'the title');
+    S.cols.forEach((c, i) => { g += hit('col:' + c.id, l.xs[i], l.top, l.widths[i], l.headH, l.headFs, 700, c.name); });
+    l.laid.forEach(row => {
+      g += hit('row:' + row.r.id, M, row.y, LAB - 4, row.h, Math.max(l.fs, 18), 700, row.r.name);
+      S.cols.forEach((c, i) => { g += hit(`cell:${row.r.id}|${c.id}`, l.xs[i], row.y, l.widths[i], row.h, l.fs, 400, `${row.r.name}, ${c.name}`); });
+    });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="group" aria-label="${esc(S.title || cfg.name)}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
     $('slide').innerHTML = svg;
     const note = $('fit');
     note.classList.toggle('warn', l.fs < READABLE || h > H);
@@ -197,6 +205,23 @@ window.GridTool = function (cfg) {
   addEventListener('keydown', e => {
     if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return;
     e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll();
+  });
+
+  /* editing on the slide */
+  const [kind, id] = [k => k.split(':')[0], k => k.slice(k.indexOf(':') + 1)];
+  const cellOf = key => { const [r, c] = id(key).split('|'); return { r: S.rows.find(x => x.id === r), c: S.cols.find(x => x.id === c), at: cellKey(r, c) }; };
+  window.Slide.editOnSlide({
+    host: $('slide'),
+    read: k => kind(k) === 'title' ? S.title : kind(k) === 'col' ? (S.cols.find(c => c.id === id(k)) || {}).name : kind(k) === 'row' ? (S.rows.find(r => r.id === id(k)) || {}).name : S.cells[cellOf(k).at],
+    write: (k, v) => { const o = kind(k);
+      if (o === 'title') S.title = v.replace(/\n/g, ' ');
+      else if (o === 'col') S.cols.find(c => c.id === id(k)).name = v.replace(/\n/g, ' ');
+      else if (o === 'row') S.rows.find(r => r.id === id(k)).name = v.replace(/\n/g, ' ');
+      else S.cells[cellOf(k).at] = v; },
+    first: () => hist.snap(),
+    after: () => { $('title').value = S.title; renderGrid(); chrome(); draw(); save(); },
+    choices: k => { if (kind(k) !== 'cell') return null; const { r, c } = cellOf(k); return (r && r.scale) || (c && c.choice) || null; },
+    multi: k => kind(k) === 'cell',
   });
 
   renderAll();

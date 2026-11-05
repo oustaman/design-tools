@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Design tools</title>
+<script>try{var t=localStorage.getItem('dt-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>
   :root{--bg:#F5F4F2;--surface:#FFFFFF;--ink:#1A1618;--ink-2:#514B4A;--line:#DFDBD7;--link:#8C2437;--tile:#F7ECEE}
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1A1618;--surface:#262122;--ink:#F5F4F2;--ink-2:#C9C3C0;--line:#4D4847;--link:#F0A9B5;--tile:#3D2A2E}}
@@ -11,7 +12,12 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;line-height:1.5}
   main{max-width:1240px;margin:0 auto;padding:40px 16px}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
   h1{font-size:1.7rem;margin:0 0 6px;letter-spacing:-0.01em}
+  .theme{flex:none;display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+  .theme button{font:inherit;font-size:0.84rem;min-height:36px;padding:0 12px;border:0;background:none;color:var(--ink-2);cursor:pointer}
+  .theme button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:600}
+  .theme button:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
   .lede{color:var(--ink-2);margin:0 0 26px;max-width:62ch}
   ul{list-style:none;margin:0;padding:0;display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr))}
   li{display:grid}
@@ -27,7 +33,7 @@
 </head>
 <body>
 <main>
-  <h1>Design tools</h1>
+  <div class="top"><h1>Design tools</h1><span class="theme" role="group" aria-label="Page colours"><button type="button" data-theme-to="light">Light</button><button type="button" data-theme-to="dark">Dark</button></span></div>
   <p class="lede">Small tools for UX and service design work. Each one makes a 16:9 slide you can copy into a deck.</p>
   <ul>
     <li><a class="tool" href="evidence.html"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="13" cy="13" r="8"/><path d="M19 19l7 7M9 13h8M13 9v8"/></svg><b>Evidence maker</b><span>What you observed and where it came from, kept apart from what you think it means, with the opportunity each finding opens.</span></a></li>
@@ -43,5 +49,13 @@
   </ul>
   <footer>Your work stays in your browser. Each tool's Save button gives you text to keep and paste back later.</footer>
 </main>
+<script>
+(function () {
+  const root = document.documentElement, dark = matchMedia('(prefers-color-scheme:dark)'), buttons = document.querySelectorAll('[data-theme-to]');
+  const mark = () => { const now = root.getAttribute('data-theme') || (dark.matches ? 'dark' : 'light'); buttons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeTo === now))); };
+  buttons.forEach(b => b.addEventListener('click', () => { root.setAttribute('data-theme', b.dataset.themeTo); try { localStorage.setItem('dt-theme', b.dataset.themeTo); } catch (e) {} mark(); }));
+  dark.addEventListener('change', mark); mark();
+})();
+</script>
 </body>
 </html>

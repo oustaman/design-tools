@@ -32,12 +32,13 @@
     <p class="sm-hint">Enter adds a page below. Tab moves a page under the one above, and Shift and Tab moves it back out.</p>
     <ul class="sm-list" id="list"></ul>
   </section>
-  <section class="gt-prev" aria-label="The slide"><p class="gt-note" id="fit" role="status"></p><div id="slide"></div></section>
+  <section class="gt-prev" aria-label="The slide"><p class="gt-note"><span id="fit" role="status"></span> <span class="gt-tip">Click any words on the slide to change them.</span></p><div id="slide"></div></section>
 </div>
 <dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
   <ul>
     <li><b>Type the pages as an outline.</b> The first line is the top of the site, and the tree on the slide is drawn from the outline.</li>
     <li><b>Enter</b> adds a page below. <b>Tab</b> moves a page under the one above, and <b>Shift and Tab</b> moves it back out. Pages under it go with it.</li>
+    <li><b>Click a page on the slide</b> to rename it there. Enter adds a page below, Tab moves to the next, and Esc finishes.</li>
     <li><b>↑ and ↓</b> move a page, and the pages under it, past its neighbours.</li>
     <li><b>Showing a change?</b> Mark a page new, changed, moved or removed, and the word appears on its box, so it still reads in black and white.</li>
     <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
@@ -50,7 +51,7 @@
 <script src="tool-slide.js"></script>
 <script>
 (function () {
-  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
   const KEY = 'dt-sitemap', TAG = 'SITEMAP1', W = 1920, H = 1080, M = 56, GAP = 14, READABLE = 18, BIG = 26, SMALL = 14;
   const MARKS = { '': null, new: ['New', 'green'], changed: ['Changed', 'amber'], moved: ['Moved', 'blue'], removed: ['Removed', 'red'] };
   let uid = 1; const nid = () => 'p' + (uid++) + '-' + Date.now().toString(36);
@@ -126,7 +127,9 @@
     }
     l.cols.forEach(c => c.boxes.forEach(b => { if (b.parent) { const sx = b.parent.x + Math.min(10, (b.x - b.parent.x) / 2 || 4); g += `<path d="M${sx.toFixed(1)},${(b.parent.y + b.parent.h).toFixed(1)} V${(b.y + b.h / 2).toFixed(1)} H${b.x.toFixed(1)}" ${lc}/>`; } }));
     g += box(l.root, l.fs); l.cols.forEach(c => c.boxes.forEach(b => { g += box(b, l.fs); }));
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="img" aria-label="${esc(S.title || 'Site map')}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
+    g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
+    [l.root, ...l.cols.flatMap(c => c.boxes)].forEach(b => { g += hit('page:' + b.p.id, b.x, b.y, b.w, b.h, l.fs, b.p.d < 2 ? 700 : 400, b.p.t || 'this page'); });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="group" aria-label="${esc(S.title || 'Site map')}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
     $('slide').innerHTML = svg;
     const note = $('fit'), count = `${S.pages.length} page${S.pages.length === 1 ? '' : 's'}, ${Math.max(...S.pages.map(p => p.d)) + 1} level${S.pages.some(p => p.d) ? 's' : ''}.`;
     note.classList.toggle('warn', l.fs < READABLE || h > H);
@@ -150,7 +153,8 @@
     armed = true; $('title').value = S.title; renderList(); chrome(); draw(); save();
     if (focusId) { const f = document.querySelector(`input[data-page="${focusId}"]`); focusId = null; if (f) f.focus(); }
   }
-  function addBelow(id) { hist.snap(); const i = at(id), p = S.pages[i], fresh = page('', Math.max(1, p.d)), end = p.d ? i + 1 : 1; S.pages.splice(end, 0, fresh); level(S.pages); focusId = fresh.id; renderAll(); }
+  function insertBelow(id) { hist.snap(); const i = at(id), p = S.pages[i], fresh = page('', Math.max(1, p.d)), end = p.d ? i + 1 : 1; S.pages.splice(end, 0, fresh); level(S.pages); return fresh.id; }
+  function addBelow(id) { focusId = insertBelow(id); renderAll(); }
 
   /* one undo step per field: the first keystroke after arriving in it */
   let armed = true;
@@ -199,6 +203,14 @@
     if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
   });
   addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+  window.Slide.editOnSlide({
+    host: $('slide'),
+    read: k => k === 'title' ? S.title : (S.pages[at(k.slice(5))] || {}).t,
+    write: (k, v) => { if (k === 'title') S.title = v; else S.pages[at(k.slice(5))].t = v; },
+    first: () => hist.snap(),
+    after: () => { $('title').value = S.title; renderList(); chrome(); draw(); save(); },
+    enter: k => { if (k === 'title') return null; const id = insertBelow(k.slice(5)); renderList(); chrome(); draw(); save(); return 'page:' + id; },
+  });
   renderAll();
 })();
 </script>

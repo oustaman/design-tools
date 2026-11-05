@@ -10,7 +10,15 @@
 .gt-main.edit .gt-prev{display:none}
 .gt-slide{display:block;margin:0 auto;box-shadow:0 2px 14px rgba(0,0,0,.18);background:#fff;max-width:100%;height:auto}
 .gt-note{font-size:0.78rem;color:var(--ink-2);margin:0 0 8px;text-align:center}
-.gt-note.warn{color:var(--warn);font-weight:640}
+#fit.warn{color:var(--warn);font-weight:640}
+.gt-tip{color:var(--ink-2)}
+/* words on the slide you can click */
+#slide [data-edit],#stage [data-edit]{cursor:text;outline:none}
+#slide rect[data-edit]:hover,#slide rect[data-edit]:focus-visible,#stage rect[data-edit]:hover,#stage rect[data-edit]:focus-visible{fill:rgba(140,36,55,.06);stroke:#8C2437;stroke-width:2}
+#stage g[data-edit]{cursor:grab}
+#stage text[data-edit]:hover,#stage text[data-edit]:focus-visible{fill:#8C2437}
+.sl-inl{position:absolute;z-index:6;font-family:var(--sans);line-height:1.24;padding:4px 6px;border:2px solid var(--lec);border-radius:5px;background:#fff;color:#1A1618;resize:none;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.sl-inl:focus{outline:none}
 
 .gt-top{display:flex;gap:8px;align-items:center;padding:8px 12px;position:sticky;left:0;flex-wrap:wrap}
 .gt-top label{font-size:0.78rem;font-weight:640;white-space:nowrap}
@@ -34,7 +42,7 @@ tr.off td,tr.off th input[type=text]{opacity:.5}
 
 /* the 2×2 maker */
 .mx-tool{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px}
-.mx-stage{min-width:0;min-height:0;overflow:auto;background:var(--stage);padding:12px}
+.mx-stage{min-width:0;min-height:0;overflow:auto;background:var(--stage);padding:12px;position:relative}
 .mx-stage svg{display:block;margin:0 auto;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18);max-width:100%;height:auto;touch-action:none}
 .mx-note{cursor:grab}
 .mx-note:focus{outline:none}
