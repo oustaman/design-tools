@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Annotate maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611061200">
+</head>
+<body>
+<header class="tb-bar">
+  <a class="tb-back" href="index.html">← All tools</a>
+  <h1 class="tb-name">Annotate maker</h1>
+  <span class="gt-msg" id="msg" role="status"></span>
+  <span class="tb-sp"></span>
+  <button type="button" class="tbtn" data-act="undo" id="undo" title="Undo (Ctrl or ⌘ Z)">Undo</button>
+  <button type="button" class="tbtn" data-act="redo" id="redo" title="Redo (Ctrl or ⌘ Shift Z)">Redo</button>
+  <button type="button" class="tbtn" data-act="savebox" aria-haspopup="dialog">Save</button>
+  <button type="button" class="tbtn pri" data-act="png">Copy the slide</button>
+  <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
+    <button type="button" data-act="dl">Download the slide as a PNG</button>
+    <button type="button" data-act="list">Copy the notes as text</button>
+    <button type="button" data-act="example">See the example</button>
+    <button type="button" data-act="clear">Start again</button>
+  </div></details>
+  <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
+</header>
+<div class="mx-tool">
+  <main class="mx-stage" aria-label="The slide"><p class="gt-note"><span id="fit" role="status"></span> <span class="gt-tip">Click the picture to add a note there. Click a note's words to change them.</span></p><div id="stage"></div></main>
+  <aside class="mx-side" aria-label="Edit">
+    <label for="title">Title</label>
+    <input id="title" type="text" placeholder="What this is, and what you looked at">
+    <h2>Picture</h2>
+    <div class="an-pick"><button type="button" class="tbtn xs" data-act="choose">Choose a file</button><button type="button" class="tbtn xs" data-act="drop" id="droptxt">Remove</button><input id="file" type="file" accept="image/*" hidden></div>
+    <p class="mx-hint">Or paste a screenshot with Ctrl or ⌘ V, or drop a picture on the slide. It stays in this browser.</p>
+    <h2>Notes</h2>
+    <p class="mx-hint">Click the picture where each note belongs, then say what is there, who it affects and why it matters.</p>
+    <ol class="mx-list an-list" id="list"></ol>
+    <p class="mx-hint">Drag a number on the picture to move it. With a number selected, the arrow keys move it too.</p>
+  </aside>
+</div>
+<dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
+  <ul>
+    <li><b>Add a picture:</b> paste a screenshot, drop a file on the slide, or choose one. A photo of a letter, a form or a sign works as well as a screen.</li>
+    <li><b>Click the picture</b> where a note belongs. A numbered marker goes there and the note opens for you to type.</li>
+    <li><b>Say three things</b> in each note: what is there, who it affects, and why it matters. “Confusing” on its own tells nobody anything.</li>
+    <li><b>Move a marker</b> by dragging it, or select it and use the arrow keys (hold Shift for bigger steps).</li>
+    <li><b>Click a note on the slide</b> to change its words there. Tab moves to the next, and Esc finishes.</li>
+    <li><b>Nothing is cut off.</b> The notes get smaller until they fit beside the picture, and the tool says when they are too small to read on a call.</li>
+    <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+  </ul>
+  <p>Your work stays in this browser, picture included: press <b>Save</b> to keep it as text and carry on anywhere. The text is long when it holds a picture.</p>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
+<div id="savehost"></div>
+<script src="tool-canvas.js?v=202611061200"></script>
+<script src="tool-slide.js?v=202611061200"></script>
+<script>
+(function () {
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
+  const KEY = 'dt-annotate', TAG = 'ANNOTATE1', W = 1920, H = 1080, M = 56, READABLE = 18, BIG = 26, SMALL = 14, MARK = TONES.red;
+  /* the picture takes the left of the slide, the notes the right */
+  const PIC = { x: M, y: 150, w: 1120, h: H - 150 - M }, COL = { x: PIC.x + PIC.w + 40, w: W - M - (PIC.x + PIC.w + 40) };
+  let uid = 1; const nid = () => 'n' + (uid++) + '-' + Date.now().toString(36);
+  const blank = () => ({ title: '', img: null, iw: 0, ih: 0, notes: [] });
+  function tidy(s) {
+    if (!s || !Array.isArray(s.notes)) return null;
+    s.title = s.title || ''; if (typeof s.img !== 'string' || !/^data:image\//.test(s.img)) { s.img = null; s.iw = s.ih = 0; }
+    s.notes = s.notes.filter(n => n && typeof n.t === 'string').map(n => ({ id: typeof n.id === 'string' && /^[\w-]+$/.test(n.id) ? n.id : nid(), t: n.t, x: Math.max(0, Math.min(1, +n.x || 0)), y: Math.max(0, Math.min(1, +n.y || 0)) }));
+    return s;
+  }
+  let S = tidy(window.Slide.load(KEY)) || blank(), sel = null, current = { svg: '', h: H }, focusId = null;
+  const hist = window.Slide.history(() => S, v => { S = tidy(v) || S; });
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { say('The picture is too big to keep in this browser. It stays until you leave; press Save to keep it as text.'); } };
+  const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('msg').textContent = ''; }, 5000); };
+  $('savehost').innerHTML = window.Slide.saveDialog(TAG, 'picture and notes');
+
+  /* ---------- the picture ---------- */
+  /* where the picture sits: as large as fits, in proportion */
+  function frame() {
+    if (!S.img) return { x: PIC.x, y: PIC.y, w: PIC.w, h: PIC.h };
+    const k = Math.min(PIC.w / S.iw, PIC.h / S.ih), w = S.iw * k, h = S.ih * k;
+    return { x: PIC.x + (PIC.w - w) / 2, y: PIC.y, w, h };
+  }
+  /* a picture arrives: made smaller if it is large, so the browser can keep it */
+  function takePicture(file) {
+    if (!file || !/^image\//.test(file.type)) { say('That is not a picture.'); return; }
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, 1600 / im.naturalWidth, 1200 / im.naturalHeight), c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+      let data = c.toDataURL('image/png'); if (data.length > 1.5e6) data = c.toDataURL('image/jpeg', 0.88);
+      hist.snap(); S.img = data; S.iw = c.width; S.ih = c.height; renderAll(); say('Picture in. Click it where the first note belongs.');
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); say('That picture would not open.'); };
+    im.src = url;
+  }
+  $('file').addEventListener('change', e => { takePicture(e.target.files[0]); e.target.value = ''; });
+  addEventListener('paste', e => { if (e.target.closest('input,textarea,[contenteditable]')) return; const f = [...(e.clipboardData || {}).files || []].find(x => /^image\//.test(x.type)); if (f) { e.preventDefault(); takePicture(f); } });
+  const stage = $('stage');
+  stage.addEventListener('dragover', e => { e.preventDefault(); });
+  stage.addEventListener('drop', e => { e.preventDefault(); takePicture(e.dataTransfer.files[0]); });
+
+  /* ---------- the slide ---------- */
+  function layout(fs) {
+    const titles = wrap(S.title || 'Annotated', W - 2 * M, 42, 700), lh = fs * 1.24, pad = Math.round(fs * 0.4), gap = Math.round(fs * 0.45), badge = Math.round(fs * 1.3);
+    let y = PIC.y; const rows = S.notes.map((n, i) => { const lines = wrap(n.t || ' ', COL.w - badge - 14 - 2 * pad, fs), h = Math.max(badge, lines.length * lh) + 2 * pad, out = { n, i, lines, y, h }; y += h + gap; return out; });
+    return { fs, lh, pad, gap, badge, titles, rows, bottom: y - gap + M };
+  }
+  function pick() {
+    for (let fs = BIG; fs >= SMALL; fs--) { const l = layout(fs); if (l.bottom <= H) return { l, h: H }; }
+    const l = layout(SMALL); return { l, h: Math.ceil(l.bottom) };
+  }
+  function slideSvg(forExport) {
+    const { l, h } = pick(), f = frame(), r = Math.round(l.fs * 0.78);
+    let g = `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">ANNOTATED</text><text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>`;
+    if (S.img) g += `<image href="${S.img}" x="${f.x.toFixed(1)}" y="${f.y}" width="${f.w.toFixed(1)}" height="${f.h.toFixed(1)}" preserveAspectRatio="none"/><rect x="${f.x.toFixed(1)}" y="${f.y}" width="${f.w.toFixed(1)}" height="${f.h.toFixed(1)}" fill="none" stroke="${LINE}" stroke-width="2"/>`;
+    else g += `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="10" fill="#F5F4F2" stroke="${LINE}" stroke-width="2" stroke-dasharray="12 8"/><text x="${f.x + f.w / 2}" y="${f.y + f.h / 2}" font-size="26" fill="${MUTE}" text-anchor="middle">Paste a screenshot, drop a picture here, or choose a file</text>`;
+    if (!forExport) g += `<rect data-add="1" x="${f.x.toFixed(1)}" y="${f.y}" width="${f.w.toFixed(1)}" height="${f.h.toFixed(1)}" fill="transparent" style="cursor:crosshair"/>`;
+    l.rows.forEach(({ n, i, lines, y, h: rh }) => {
+      g += `<rect x="${COL.x}" y="${y}" width="${COL.w}" height="${rh.toFixed(1)}" rx="6" fill="#F5F4F2"/>`;
+      g += `<circle cx="${COL.x + l.pad + l.badge / 2}" cy="${y + l.pad + l.badge / 2}" r="${l.badge / 2}" fill="${MARK[1]}"/><text x="${COL.x + l.pad + l.badge / 2}" y="${(y + l.pad + l.badge / 2 + l.fs * 0.36).toFixed(1)}" font-size="${l.fs}" font-weight="700" fill="#fff" text-anchor="middle">${i + 1}</text>`;
+      g += `<text font-size="${l.fs}" fill="${INK}">${tspans(lines, COL.x + l.pad + l.badge + 14, y + l.pad + l.fs * 0.92 + Math.max(0, (l.badge - l.lh) / 2), l.lh)}</text>`;
+      if (!forExport) g += hit('note:' + n.id, COL.x, y, COL.w, rh, l.fs, 400, `note ${i + 1}`);
+    });
+    /* the markers last, so they sit on top of the picture */
+    S.notes.forEach((n, i) => { const cx = f.x + n.x * f.w, cy = f.y + n.y * f.h, attrs = forExport ? '' : ` class="an-mark${sel === n.id ? ' on' : ''}" data-mark="${n.id}" tabindex="0" role="button" aria-label="Marker ${i + 1}. Use the arrow keys to move it."`;
+      g += `<g${attrs}><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${MARK[1]}" stroke="#fff" stroke-width="3"/><text x="${cx.toFixed(1)}" y="${(cy + r * 0.38).toFixed(1)}" font-size="${Math.round(r * 1.1)}" font-weight="700" fill="#fff" text-anchor="middle">${i + 1}</text></g>`; });
+    if (!forExport) g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' id="${forExport ? 'x' : 'plot'}" role="group" aria-label="${esc(S.title || 'Annotated')}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
+    return { svg, h, fs: l.fs };
+  }
+  function drawSlide() {
+    const { svg, h, fs } = slideSvg(false); stage.innerHTML = svg; current = { svg: slideSvg(true).svg, h };
+    const note = $('fit'); note.classList.toggle('warn', fs < READABLE || h > H);
+    note.textContent = !S.notes.length ? '' : h > H ? `Taller than a slide even at the smallest text (${fs}). Cut some words, or split the notes over two slides.` : fs < READABLE ? `Notes are down to ${fs}, which is hard to read on a call. Cut some words, or split them over two slides.` : `All your words fit, at text size ${fs}.`;
+  }
+  function renderSide() {
+    $('title').value = S.title; $('droptxt').hidden = !S.img;
+    $('list').innerHTML = S.notes.map((n, i) => `<li><span class="an-n">${i + 1}</span><textarea data-n="${n.id}" rows="2" aria-label="Note ${i + 1}" placeholder="What is there, who it affects, why it matters">${esc(n.t)}</textarea><button type="button" data-act="del" data-id="${n.id}" aria-label="Remove note ${i + 1}">×</button></li>`).join('');
+  }
+  function chrome() { const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r; }
+  function renderAll() { armed = true; renderSide(); drawSlide(); chrome(); save(); if (focusId) { const t = document.querySelector(`textarea[data-n="${focusId}"]`); focusId = null; if (t) t.focus(); } }
+
+  let armed = true;
+  document.addEventListener('focusin', e => { if (e.target.matches('.mx-side input,.mx-side textarea')) armed = true; });
+  document.querySelector('.mx-side').addEventListener('input', e => {
+    const t = e.target; if (t.id === 'file') return;
+    if (armed) { hist.snap(); armed = false; }
+    if (t.id === 'title') S.title = t.value;
+    if (t.dataset.n) { const n = S.notes.find(x => x.id === t.dataset.n); if (n) n.t = t.value; }
+    drawSlide(); chrome(); save();
+  });
+
+  /* ---------- markers: a click adds one, dragging moves it ---------- */
+  let drag = null;
+  const toSlide = e => { const svg = $('plot'), m = svg.getScreenCTM().inverse(), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(m); return { x: q.x, y: q.y }; };
+  const inFrame = q => { const f = frame(); return { x: Math.max(0, Math.min(1, (q.x - f.x) / f.w)), y: Math.max(0, Math.min(1, (q.y - f.y) / f.h)) }; };
+  stage.addEventListener('pointerdown', e => {
+    const g = e.target.closest('[data-mark]'); if (!g) { if (sel && !e.target.closest('[data-add]')) { sel = null; drawSlide(); } return; }
+    const n = S.notes.find(x => x.id === g.dataset.mark); if (!n) return;
+    const q = toSlide(e), f = frame(); sel = n.id; drag = { n, dx: f.x + n.x * f.w - q.x, dy: f.y + n.y * f.h - q.y, moved: false }; e.preventDefault(); drawSlide();
+    const again = stage.querySelector(`[data-mark="${n.id}"]`); if (again) again.focus({ preventScroll: true });
+  });
+  addEventListener('pointermove', e => { if (!drag) return; if (!drag.moved) { drag.moved = true; hist.snap(); } const q = toSlide(e); Object.assign(drag.n, inFrame({ x: q.x + drag.dx, y: q.y + drag.dy })); drawSlide(); });
+  addEventListener('pointerup', () => { if (!drag) return; const id = drag.n.id; drag = null; save(); chrome(); const g = stage.querySelector(`[data-mark="${id}"]`); if (g) g.focus({ preventScroll: true }); });
+  stage.addEventListener('click', e => {
+    if (!e.target.closest('[data-add]') || e.target.closest('[data-mark]')) return;
+    if (!S.img) { $('file').click(); return; }
+    hist.snap(); const n = { id: nid(), t: '', ...inFrame(toSlide(e)) }; S.notes.push(n); sel = n.id; focusId = n.id; renderAll();
+  });
+  stage.addEventListener('keydown', e => {
+    const g = e.target.closest('[data-mark]'); if (!g) return;
+    const n = S.notes.find(x => x.id === g.dataset.mark); if (!n) return;
+    if (e.key === 'Enter') { e.preventDefault(); onSlide.open('note:' + n.id); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); hist.snap(); S.notes = S.notes.filter(x => x !== n); sel = null; renderAll(); return; }
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!d) return;
+    e.preventDefault(); hist.snap(); const k = e.shiftKey ? 0.05 : 0.01; n.x = Math.max(0, Math.min(1, n.x + d[0] * k)); n.y = Math.max(0, Math.min(1, n.y + d[1] * k)); sel = n.id; drawSlide(); chrome(); save();
+    const again = stage.querySelector(`[data-mark="${n.id}"]`); if (again) again.focus({ preventScroll: true });
+  });
+
+  /* the same missed bin case as the other tools: a drawn screen, so the example needs no real picture */
+  function example() {
+    const sc = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" font-family='${FONT}'><rect width="900" height="1200" fill="#fff"/><rect width="900" height="90" fill="#1A1618"/><text x="40" y="58" font-size="30" font-weight="700" fill="#fff">Brookmere Council</text>
+      <text x="40" y="170" font-size="40" font-weight="700" fill="#1A1618">Report a missed bin</text><text x="40" y="230" font-size="24" fill="#514B4A">Fields marked * are mandatory</text>
+      <text x="40" y="310" font-size="24" fill="#1A1618">Title *</text><rect x="40" y="325" width="200" height="56" fill="#fff" stroke="#8E8685" stroke-width="2"/>
+      <text x="40" y="430" font-size="24" fill="#1A1618">Full name *</text><rect x="40" y="445" width="820" height="56" fill="#fff" stroke="#8E8685" stroke-width="2"/>
+      <text x="40" y="550" font-size="24" fill="#1A1618">Bin category code *</text><rect x="40" y="565" width="820" height="56" fill="#fff" stroke="#8E8685" stroke-width="2"/><text x="56" y="603" font-size="22" fill="#8E8685">e.g. RES-240-B</text>
+      <text x="40" y="670" font-size="24" fill="#1A1618">Date of scheduled collection *</text><rect x="40" y="685" width="400" height="56" fill="#fff" stroke="#8E8685" stroke-width="2"/><text x="56" y="723" font-size="22" fill="#8E8685">DD/MM/YYYY</text>
+      <text x="40" y="790" font-size="24" fill="#1A1618">Upload a photograph of the bin</text><rect x="40" y="805" width="300" height="56" fill="#EDEBE8" stroke="#8E8685" stroke-width="2"/><text x="60" y="843" font-size="22" fill="#1A1618">Browse…</text>
+      <rect x="40" y="920" width="240" height="64" rx="4" fill="#EDEBE8" stroke="#8E8685" stroke-width="2"/><text x="160" y="961" font-size="24" fill="#514B4A" text-anchor="middle">Submit</text>
+      <text x="40" y="1060" font-size="20" fill="#514B4A">Missed collections must be reported within 48 hours. Terms and conditions apply.</text></svg>`;
+    const s = blank(); s.title = 'The missed bin form as it is now: what stops people'; s.img = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(sc); s.iw = 900; s.ih = 1200;
+    s.notes = [
+      ['Title and full name are mandatory, but nothing in emptying a bin needs a name. Each extra box loses people who are already annoyed', 0.3, 0.37],
+      ['“Bin category code” means nothing to residents; they know the colour. Three of six people stopped here in testing', 0.5, 0.49],
+      ['People are asked for the collection date, which the council already holds against the address', 0.25, 0.59],
+      ['A photograph is optional, but the box looks like one more hurdle on a phone', 0.2, 0.69],
+      ['The 48-hour rule is in small print at the bottom, after the form, so people learn it too late', 0.5, 0.88],
+    ].map(([t, x, y]) => ({ id: nid(), t, x, y }));
+    return s;
+  }
+  const listText = () => S.notes.map((n, i) => `${i + 1}. ${n.t}`).join('\n');
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, png = () => window.Slide.pngOf(current.svg, W, current.h);
+    if (act === 'undo') { if (hist.undo()) renderAll(); return; }
+    if (act === 'redo') { if (hist.redo()) renderAll(); return; }
+    if (act === 'choose') return $('file').click();
+    if (act === 'drop') { hist.snap(); S.img = null; S.iw = S.ih = 0; return renderAll(); }
+    if (act === 'del') { hist.snap(); S.notes = S.notes.filter(n => n.id !== b.dataset.id); return renderAll(); }
+    if (act === 'png') return window.Slide.copyPicture(png(), 'annotated.png', say);
+    if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), 'annotated.png'); } catch (x) { say('That did not work in this browser.'); } return; }
+    if (act === 'list') { b.closest('details').open = false; return window.Slide.copyText(listText(), say, 'Notes copied.'); }
+    if (act === 'example') { b.closest('details').open = false; hist.snap(); S = example(); sel = null; say('The example is in. Undo brings your work back.'); return renderAll(); }
+    if (act === 'clear') { b.closest('details').open = false; hist.snap(); S = blank(); sel = null; say('Cleared. Undo brings it back.'); return renderAll(); }
+    if (act === 'help') return $('helpdlg').showModal();
+    if (act === 'savebox') { $('savecode').value = window.Slide.encode(TAG, S); $('savemsg').textContent = ''; return $('savedlg').showModal(); }
+    if (act === 'savecopy') return window.Slide.copyText($('savecode').value, t => { $('savemsg').textContent = t; });
+    if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; sel = null; renderAll(); $('savedlg').close(); say('Your work is back.'); }
+  });
+  addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey || e.target.closest('.sl-inl')) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+
+  const onSlide = window.Slide.editOnSlide({
+    host: stage,
+    read: k => k === 'title' ? S.title : (S.notes.find(n => n.id === k.slice(5)) || {}).t,
+    write: (k, v) => { const t = v.replace(/\n/g, ' '); if (k === 'title') S.title = t; else { const n = S.notes.find(x => x.id === k.slice(5)); if (n) n.t = t; } },
+    first: () => hist.snap(),
+    after: () => { renderSide(); drawSlide(); chrome(); save(); },
+  });
+  renderAll();
+})();
+</script>
+</body>
+</html>
