@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>2×2 maker — Design tools</title>
-<link rel="stylesheet" href="tool-shell.css">
-<link rel="stylesheet" href="tool-grid.css">
+<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611061200">
 </head>
 <body>
 <header class="tb-bar">
@@ -56,8 +56,8 @@
   <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
   <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
 <div id="savehost"></div>
-<script src="tool-canvas.js"></script>
-<script src="tool-slide.js"></script>
+<script src="tool-canvas.js?v=202611061200"></script>
+<script src="tool-slide.js?v=202611061200"></script>
 <script>
 (function () {
   const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
@@ -71,9 +71,9 @@
   };
   const blankBoard = k => { const p = presets[k]; return { title: '', xn: p.xn, xl: p.xl, xh: p.xh, yn: p.yn, yl: p.yl, yh: p.yh, q: p.q.slice(), notes: [] }; };
   const blank = () => ({ cur: 'risk', boards: Object.fromEntries(Object.keys(presets).map(k => [k, blankBoard(k)])) });
-  const tidy = s => (s && s.boards && presets[s.cur] && Object.keys(presets).every(k => s.boards[k]) ? s : null);
-  let S = tidy(window.Slide.load(KEY)) || blank(), sel = null, uid = 1;
-  const nid = () => 'n' + (uid++) + '-' + Date.now().toString(36);
+  let uid = 1; const nid = () => 'n' + (uid++) + '-' + Date.now().toString(36);
+  const tidy = s => { if (!s || !s.boards || !presets[s.cur]) return null; Object.keys(presets).forEach(k => { if (!s.boards[k]) s.boards[k] = blankBoard(k); }); s.boards[s.cur].notes = (s.boards[s.cur].notes || []).filter(n => n && typeof n.t === 'string'); Object.values(s.boards).forEach(b => (b.notes || []).forEach(n => { if (typeof n.id !== 'string' || !/^[\w-]+$/.test(n.id)) n.id = nid(); })); return s; };
+  let S = tidy(window.Slide.load(KEY)) || blank(), sel = null;
   const hist = window.Slide.history(() => S, v => { S = tidy(v) || S; });
   const B = () => S.boards[S.cur];
   const save = () => window.Slide.store(KEY, S);
@@ -149,13 +149,13 @@
   $('stage').addEventListener('pointerdown', e => {
     const g = e.target.closest('[data-note]'); if (!g) { if (sel) { sel = null; const was = $('stage').querySelector('.mx-note.on'); if (was) was.classList.remove('on'); } return; }
     const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return;
-    const q = toSlide(e), a = area(), again0 = sel === n.id; sel = n.id; hist.snap();
+    const q = toSlide(e), a = area(), again0 = sel === n.id; sel = n.id;
     drag = { n, again: again0, dx: P.x + n.x * P.w - q.x, dy: a.top + (1 - n.y) * a.ph - q.y, a, moved: false };
     e.preventDefault(); drawSlide(); chrome();
     const again = $('stage').querySelector(`[data-note="${n.id}"]`); if (again) again.focus({ preventScroll: true });
   });
-  addEventListener('pointermove', e => { if (!drag) return; const q = toSlide(e), { n, a } = drag; n.x = Math.max(0, Math.min(1, (q.x + drag.dx - P.x) / P.w)); n.y = Math.max(0, Math.min(1, 1 - (q.y + drag.dy - a.top) / a.ph)); drag.moved = true; drawSlide(); });
-  addEventListener('pointerup', () => { if (!drag) return; const id = drag.n.id, edit = drag.again && !drag.moved; drag = null; save(); if (edit) { onSlide.open('note:' + id); return; } const g = $('stage').querySelector(`[data-note="${id}"]`); if (g) g.focus({ preventScroll: true }); });
+  addEventListener('pointermove', e => { if (!drag) return; const q = toSlide(e), { n, a } = drag; if (!drag.moved) { drag.moved = true; hist.snap(); } n.x = Math.max(0, Math.min(1, (q.x + drag.dx - P.x) / P.w)); n.y = Math.max(0, Math.min(1, 1 - (q.y + drag.dy - a.top) / a.ph)); drawSlide(); });
+  addEventListener('pointerup', () => { if (!drag) return; const id = drag.n.id, edit = drag.again && !drag.moved; drag = null; save(); chrome(); if (edit) { onSlide.open('note:' + id); return; } const g = $('stage').querySelector(`[data-note="${id}"]`); if (g) g.focus({ preventScroll: true }); });
   $('stage').addEventListener('keydown', e => {
     const g = e.target.closest('[data-note]'); if (!g) return; const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key]; if (!d) return;
     e.preventDefault(); const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return; hist.snap(); const k = e.shiftKey ? 0.1 : 0.02;

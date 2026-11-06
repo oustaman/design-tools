@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Site map maker — Design tools</title>
-<link rel="stylesheet" href="tool-shell.css">
-<link rel="stylesheet" href="tool-grid.css">
+<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611061200">
 </head>
 <body>
 <header class="tb-bar">
@@ -47,8 +47,8 @@
   <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
   <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
 <div id="savehost"></div>
-<script src="tool-canvas.js"></script>
-<script src="tool-slide.js"></script>
+<script src="tool-canvas.js?v=202611061200"></script>
+<script src="tool-slide.js?v=202611061200"></script>
 <script>
 (function () {
   const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans, hit } = window.Slide;
@@ -62,7 +62,7 @@
   function tidy(s) {
     if (!s || !Array.isArray(s.pages) || !s.pages.length) return null;
     s.title = s.title || ''; s.view = s.view || 'both';
-    s.pages.forEach(p => { p.id = p.id || nid(); p.t = p.t || ''; p.d = +p.d || 0; p.m = MARKS[p.m] ? p.m : ''; });
+    s.pages.forEach(p => { if (typeof p.id !== 'string' || !/^[\w-]+$/.test(p.id)) p.id = nid(); p.t = String(p.t || ''); p.d = +p.d || 0; p.m = MARKS[p.m] ? p.m : ''; });
     level(s.pages);
     return s;
   }
@@ -153,7 +153,7 @@
     armed = true; $('title').value = S.title; renderList(); chrome(); draw(); save();
     if (focusId) { const f = document.querySelector(`input[data-page="${focusId}"]`); focusId = null; if (f) f.focus(); }
   }
-  function insertBelow(id) { hist.snap(); const i = at(id), p = S.pages[i], fresh = page('', Math.max(1, p.d)), end = p.d ? i + 1 : 1; S.pages.splice(end, 0, fresh); level(S.pages); return fresh.id; }
+  function insertBelow(id) { hist.snap(); const i = at(id), p = S.pages[i], fresh = page('', Math.max(1, p.d)), end = p.d ? branch(i) : 1; S.pages.splice(end, 0, fresh); level(S.pages); return fresh.id; }
   function addBelow(id) { focusId = insertBelow(id); renderAll(); }
 
   /* one undo step per field: the first keystroke after arriving in it */

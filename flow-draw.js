@@ -168,7 +168,8 @@
     for (let pass = 0; pass < 3; pass++) list.forEach(x => { if (!x.br || P[x.id]) return;
       const a = arrows.find(e => e.to === x && P[e.from.id]); if (!a && pass < 2) return;
       const o = a ? P[a.from.id] : { c: 0, r: Math.max(0, ...Object.values(P).map(q => q.r)) };
-      for (const [dc, dr] of [[0, 1], [1, 1], [-1, 1], [0, 2], [1, 2], [-1, 2], [2, 1], [0, 3]]) { const cc = o.c + dc, rr = o.r + dr; if (cc >= 0 && !used.has(key(cc, rr))) { put(x.id, cc, rr); return; } } });
+      for (const [dc, dr] of [[0, 1], [1, 1], [-1, 1], [0, 2], [1, 2], [-1, 2], [2, 1], [0, 3]]) { const cc = o.c + dc, rr = o.r + dr; if (cc >= 0 && !used.has(key(cc, rr))) { put(x.id, cc, rr); return; } }
+      if (pass === 2) for (let rr = o.r + 1; ; rr++) for (let cc = 0; cc < per + 2; cc++) if (!used.has(key(cc, rr))) { put(x.id, cc, rr); return; } });
     return P;
   }
   function graph(list, x0, y0, bw0, bh0, o = {}) {

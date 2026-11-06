@@ -12,6 +12,10 @@ window.GridTool = function (cfg) {
   function tidy(s) {
     if (!s || !Array.isArray(s.cols) || !Array.isArray(s.rows)) return null;
     s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both';
+    /* an id goes into markup unescaped, so one that is not plain letters, digits and dashes is replaced */
+    [['rows', 'r'], ['cols', 'c']].forEach(([k, p]) => s[k].forEach(x => { if (typeof x.id === 'string' && /^[\w-]+$/.test(x.id)) return;
+      const old = x.id; x.id = nid(p);
+      Object.keys(s.cells).forEach(at => { const [r, c] = at.split('|'); if ((p === 'r' ? r : c) === String(old)) { s.cells[(p === 'r' ? x.id : r) + '|' + (p === 'c' ? x.id : c)] = s.cells[at]; delete s.cells[at]; } }); }));
     if (cfg.tidy) cfg.tidy(s);
     return s;
   }
@@ -159,16 +163,17 @@ window.GridTool = function (cfg) {
   let armed = true;
   document.addEventListener('focusin', e => { if (e.target.matches('input,textarea,select')) armed = true; });
   document.addEventListener('input', e => {
-    const t = e.target, f = t.dataset.f || (t.id === 'title' ? 'title' : null); if (!f) return;
+    const t = e.target, f = t.dataset.f || (t.id === 'title' ? 'title' : null); if (!f || f === 'show') return;
     if (armed) { hist.snap(); armed = false; }
     if (f === 'title') S.title = t.value;
     if (f === 'col') S.cols.find(c => c.id === t.dataset.id).name = t.value;
     if (f === 'row') S.rows.find(r => r.id === t.dataset.id).name = t.value;
     if (f === 'cell') S.cells[cellKey(t.dataset.r, t.dataset.c)] = t.value;
-    if (f === 'show') return;
     chrome(); draw(); save();
   });
-  document.addEventListener('change', e => { const t = e.target; if (t.dataset.f !== 'show') return; hist.snap(); S.rows.find(r => r.id === t.dataset.id).hidden = !t.checked; renderAll(); });
+  document.addEventListener('change', e => { const t = e.target;
+    if (t.dataset.f === 'cell' && t.tagName === 'SELECT') { const at = cellKey(t.dataset.r, t.dataset.c); if (S.cells[at] === t.value) return; hist.snap(); S.cells[at] = t.value; chrome(); draw(); save(); return; }
+    if (t.dataset.f !== 'show') return; hist.snap(); S.rows.find(r => r.id === t.dataset.id).hidden = !t.checked; renderAll(); });
 
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, id = b.dataset.id;
