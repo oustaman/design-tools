@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Flow maker — Design tools</title>
-<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-shell.css?v=202611231900">
 <style>
   /* the Flow maker: the slide on a canvas, and on the right the steps that draw it */
   .tool{grid-template-columns:minmax(0,1fr) 372px;grid-template-rows:minmax(0,1fr)}
@@ -95,6 +95,7 @@
   #slide g[data-step]:focus-visible > rect:first-child,#slide g[data-step]:focus-visible > polygon:first-child{stroke:#1A526D;stroke-width:6}
   #slide{position:relative}
   #inl{position:absolute;z-index:3;resize:none;overflow:hidden;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-weight:600;line-height:1.25;text-align:center;color:#1A1618;background:#fff;border:3px solid #1A526D;border-radius:8px;padding:4px 6px;outline:none;box-shadow:0 2px 12px rgba(26,82,109,.3)}
+  .tally-warn{font-weight:600;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -196,16 +197,16 @@
   <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div>
 </form></dialog>
 
-<script src="flow-draw.js?v=202611061200"></script>
-<script src="tool-tour.js?v=202611061200"></script>
-<script src="tool-canvas.js?v=202611061200"></script>
+<script src="flow-draw.js?v=202611231900"></script>
+<script src="tool-tour.js?v=202611231900"></script>
+<script src="tool-canvas.js?v=202611231900"></script>
 <script>
 (function () {
   /* The Flow maker. List the journey as it is now, then build a new version FROM it: start
      from a copy, then remove, merge, move, rename and add screens. Every step now ends up kept,
      merged, moved or removed; the drawing is a 16:9 slide. Nothing to learn but the buttons. */
   const $ = id => document.getElementById(id);
-  const { esc, nums, counts, fatesOf, COL, graph, cellsOf, PAL, migrate, DEFS, FONT, fill } = window.FD;
+  const { esc, nums, counts, fatesOf, COL, graph, cellsOf, PAL, migrate, DEFS, FONT, wrap: FD_wrap, clip: FD_clip, fill: FD_fill } = window.FD;
   const fates = () => fatesOf(S.before, S.after);
   const KEY = 'dt-flow';
   let uid = 1; const nid = p => p + (uid++) + '-' + Date.now().toString(36);
@@ -343,17 +344,17 @@
   const W = 1920, H = 1080, M = 72;
   /* the goal: all of it, on one line at full size, or smaller on as many lines as the room above the diagram takes */
   function goalLines() {
-    const g = S.goal || 'Your goal', room = W - 2 * M, one = fill(g, room, 44, 800);
+    const g = S.goal || 'Your goal', room = W - 2 * M, one = FD_fill(g, room, 44, 800);
     if (one.length === 1) return `<g data-goal="1"><text x="${M}" y="${M + 72}" font-size="44" font-weight="800" fill="${COL.ink}">${esc(g)}</text></g>`;
-    let fs = 34, lines = fill(g, room, fs, 800); while (lines.length * fs * 1.22 > 86 && fs > 12) { fs--; lines = fill(g, room, fs, 800); }
+    let fs = 34, lines = FD_fill(g, room, fs, 800); while (lines.length * fs * 1.22 > 86 && fs > 12) { fs--; lines = FD_fill(g, room, fs, 800); }
     const lh = fs * 1.22;
     return `<g data-goal="1">${lines.map((l, i) => `<text x="${M}" y="${(M + 60 - 34 + fs + i * lh).toFixed(1)}" font-size="${fs}" font-weight="800" fill="${COL.ink}">${esc(l)}</text>`).join('')}</g>`;
   }
-  const GEO = { before: {}, after: {} }, LEG = '@legend';
+  const GEO = { before: {}, after: {} }, LEG = '@legend'; let FIT = [];
   function slide() {
     const cb = counts(S.before), ca = counts(S.after), v = S.view, F = v === 'both' ? fates() : null;
     const head = v === 'before' ? 'How people do it now' : v === 'after' ? 'Your version' : 'Now, and your version';
-    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${FONT}">
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${FONT}" text-rendering="geometricPrecision">
       ${DEFS}
       <rect width="${W}" height="${H}" fill="#fff"/>
       <text x="${M}" y="${M + 22}" font-size="20" font-weight="700" fill="${COL.mute}" letter-spacing="2">FLOW DIAGRAM</text>
@@ -364,13 +365,18 @@
     const shown = v === 'both' ? [...S.before, ...S.after] : S[v], keys = [...new Set(shown.map(x => x.c))].filter(k => PAL[k] && (S.legend[k] || '').trim());
     const lh = keys.length ? 44 : 0;
     if (lh) { let kx = M; const ky = H - 60; keys.forEach(k => { const t = S.legend[k].trim(); s += `<rect x="${kx}" y="${ky}" width="26" height="26" rx="6" fill="${PAL[k][0]}" stroke="${PAL[k][1]}" stroke-width="2.5"/><text data-legend="${k}" x="${kx + 34}" y="${ky + 20}" font-size="20" fill="${COL.ink}">${esc(t)}</text>`; kx += 34 + t.length * 10.5 + 34; }); }
-    const y0 = M + 112, bw0 = W - 2 * M, room = H - y0 - 30 - lh;
+    const y0 = M + 112, bw0 = W - 2 * M, room = H - y0 - 30 - lh; FIT = [];
     if (v === 'both') {
       /* each gets height for the rows it has */
-      const rowsIn = l => l.length ? Math.max(...Object.values(cellsOf(l)).map(q => q.r)) + 1 : 1, r1 = rowsIn(S.before), r2 = rowsIn(S.after), hh = room * (r1 + 0.7) / (r1 + r2 + 1.4);
-      s += graph(S.before, M, y0, bw0, hh - 10, { label: 'NOW', sub: sum(cb), F, geo: GEO.before }) + `<line x1="${M}" y1="${y0 + hh}" x2="${W - M}" y2="${y0 + hh}" stroke="#DFDBD7" stroke-width="2"/>` +
-        graph(S.after, M, y0 + hh + 14, bw0, room - hh - 10, { label: 'YOUR VERSION', sub: `${sum(ca)}   (was ${cb.steps} steps, ${cb.stuck} stuck)`, geo: GEO.after });
-    } else s += graph(S[v], M, y0, bw0, room, { label: v === 'before' ? 'NOW' : 'YOUR VERSION', sub: sum(v === 'before' ? cb : ca), geo: GEO[v] });
+      const rowsIn = l => l.length ? Math.max(...Object.values(cellsOf(l)).map(q => q.r)) + 1 : 1, r1 = rowsIn(S.before), r2 = rowsIn(S.after);
+      /* ...unless a half needs more for its words: try other splits, keep the one where both fit at the largest text */
+      const tryAt = hb => { const a = {}, b = {}; graph(S.before, M, y0, bw0, hb - 10, { label: 'NOW', F, fit: a }); graph(S.after, M, y0 + hb + 14, bw0, room - hb - 10, { label: 'YOUR VERSION', fit: b });
+        return (a.over || b.over ? 0 : 100) + Math.min(a.fs || 99, b.fs || 99); };
+      let hh = room * (r1 + 0.7) / (r1 + r2 + 1.4), best = tryAt(hh);
+      for (let k = 0.3; k < 0.71; k += 0.05) { const sc = tryAt(room * k); if (sc > best) { best = sc; hh = room * k; } }
+      s += graph(S.before, M, y0, bw0, hh - 10, { label: 'NOW', sub: sum(cb), F, geo: GEO.before, fit: FIT[0] = {} }) + `<line x1="${M}" y1="${y0 + hh}" x2="${W - M}" y2="${y0 + hh}" stroke="#DFDBD7" stroke-width="2"/>` +
+        graph(S.after, M, y0 + hh + 14, bw0, room - hh - 10, { label: 'YOUR VERSION', sub: `${sum(ca)}   (was ${cb.steps} steps, ${cb.stuck} stuck)`, geo: GEO.after, fit: FIT[1] = {} });
+    } else s += graph(S[v], M, y0, bw0, room, { label: v === 'before' ? 'NOW' : 'YOUR VERSION', sub: sum(v === 'before' ? cb : ca), geo: GEO[v], fit: FIT[0] = {} });
     return s + '</svg>';
   }
   function draw() {
@@ -378,9 +384,11 @@
     $('slide').innerHTML = slide(); mark();
     const cb = counts(S.before), ca = counts(S.after);
     const t = c => `<b>${c.steps}</b> step${c.steps === 1 ? '' : 's'}, <b>${c.waits}</b> wait${c.waits === 1 ? '' : 's'}, <b>${c.stuck}</b> stuck`;
-    const shown = S.view === 'both' ? [GEO.before, GEO.after] : [GEO[S.view]], low = shown.filter(g => g.lowered), least = low.length ? Math.min(...low.map(g => g.fs)) : 0;
-    const tight = shown.some(g => g.fits === false) ? 'Too many words to fit even at the smallest text. Shorten a box or split it in two.' : least && least < 18 ? `Long words have brought the text down to ${least}, which is hard to read on a call. Shorten a box or split it in two.` : '';
-    $('tally').innerHTML = `Now: ${t(cb)}` + (S.after.length ? ` · Your version: ${t(ca)}` : '') + (tight ? ` · <b style="color:${COL.bad}">${tight}</b>` : '');
+    /* Text is never cut, so long step names make it smaller instead. Say so once it is below 18, the size that
+       still reads on a projector or a call. */
+    const small = FIT.filter(f => f && f.fs < f.fsMax && f.fs < 15).map(f => f.fs);
+    $('tally').innerHTML = (small.length ? `<span class="tally-warn" title="Some steps have a lot of words, so every box's text got smaller to fit them all. Shorter step names read better on a slide.">Text at size ${Math.min(...small)}: shorten long steps</span> · ` : '')
+      + `Now: ${t(cb)}` + (S.after.length ? ` · Your version: ${t(ca)}` : '');
   }
 
   /* history: every change can be undone */

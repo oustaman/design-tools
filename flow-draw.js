@@ -30,7 +30,7 @@
 
   const wrap = (s, max) => { const out = []; let line = ''; String(s).split(/\s+/).forEach(w => { if ((line + ' ' + w).trim().length > max) { if (line) out.push(line); line = w; } else line = (line + ' ' + w).trim(); }); if (line) out.push(line); return out.length ? out : ['']; };
   const clip = (lines, n) => lines.length <= n ? lines : [...lines.slice(0, n - 1), lines[n - 1].replace(/[,.;:]?$/, '') + '…'];
-  /* the Flow maker's words, measured in the browser's own font: all of them are kept, and a word too long for a line breaks across lines */
+  /* words measured in the browser's own font: all of them are kept, and a word too long for a line breaks across lines */
   const ruler = document.createElement('canvas').getContext('2d');
   const wide = (s, fs, wt = 400) => { ruler.font = `${wt} ${fs}px ${FONT}`; return ruler.measureText(s).width; };
   function fill(s, maxW, fs, wt = 400) {
@@ -87,8 +87,8 @@
             `<text x="${x + 4}" y="${y + 6}" font-size="15" font-weight="800" fill="${COL.qs}">${N[it.id]}</text>`);
           P[it.id].q = true; P[it.id].top = y - 8; P[it.id].bot = y + bh + 8;
         } else {
-          const wl = it.w ? wrap(it.w, cpl + 2) : [], fit = Math.max(1, Math.floor((bh - 22 - wl.length * 18) / (fs + 4))), tl = clip(wrap(it.t, cpl), Math.min(fit, 4));
-          const th = tl.length * (fs + 4) + (wl.length ? wl.length * 18 + 2 : 0), ty = cy - th / 2 + fs;
+          const fit = Math.max(1, Math.floor((bh - (it.w ? 40 : 22)) / (fs + 4))), tl = clip(wrap(it.t, cpl), Math.min(fit, 4)), wl = it.w ? clip(wrap(it.w, cpl + 2), 1) : [];
+          const th = tl.length * (fs + 4) + (wl.length ? 20 : 0), ty = cy - th / 2 + fs;
           out.push(`<rect x="${x}" y="${y}" width="${w}" height="${bh}" rx="10" fill="${it.bad ? COL.badf : f && f.kind === 'removed' ? '#F4F3F1' : COL.box}" stroke="${it.bad ? COL.bad : f && f.kind === 'removed' ? COL.rm : COL.line}" stroke-width="${it.bad ? 3.5 : 2.5}"${f && f.kind === 'removed' ? ' stroke-dasharray="8 6"' : ''}/>`,
             T(tl, cx, ty, fs + 4, `data-f="t" font-size="${fs}" font-weight="600" fill="${f && f.kind === 'removed' ? COL.rm : COL.ink}"`),
             wl.length ? T(wl, cx, ty + tl.length * (fs + 4) + 2, 18, `data-f="w" font-size="14" fill="${COL.mute}"`) : '',
@@ -176,41 +176,61 @@
     const out = [], N = nums(list), F = o.F, head = o.label ? 82 : 0;
     if (o.label) out.push(`<text x="${x0}" y="${y0 + 26}" font-size="24" font-weight="800" letter-spacing="2" fill="${COL.ink}">${esc(o.label)}</text>`,
       `<text x="${x0}" y="${y0 + 56}" font-size="19" fill="${COL.mute}">${esc(o.sub || '')}</text>`);
-    if (!list.length) { if (o.geo) Object.assign(o.geo, { fs: 0, lowered: false, fits: true }); out.push(`<text x="${x0}" y="${y0 + 120}" font-size="22" fill="${COL.mute}">Nothing here yet.</text>`); return out.join(''); }
+    if (!list.length) { out.push(`<text x="${x0}" y="${y0 + 120}" font-size="22" fill="${COL.mute}">Nothing here yet.</text>`); return out.join(''); }
     const cells = cellsOf(list), vals = Object.values(cells), C = Math.max(...vals.map(q => q.c)) + 1, R = Math.max(...vals.map(q => q.r)) + 1;
     const allArrows = arrowsOf(list);
     const goesDown = x => allArrows.some(e => e.from === x && cells[e.to.id].c === cells[x.id].c && cells[e.to.id].r > cells[x.id].r);
     const stuckUp = x => x.k === 'q' && goesDown(x) && (x.ans || []).some(a => a.to === '@stuck');
     const first = list.filter(x => cells[x.id].r === 0);
-    const cw = Math.min(330, bw0 / C), left = x0 + (bw0 - C * cw) / 2, w = Math.max(cw - 76, cw * 0.68), qw = Math.min(w * 1.06, cw - 44), full = cw >= 260 ? 23 : cw >= 190 ? 18 : 15;
-    /* the words in a diamond: the width that lets it be smallest, and a number above them stays clear */
-    const inDiamond = (x, fs) => { let best = null; for (let f = 0.45; f < 0.85; f += 0.05) { const lines = fill(x.t, qw * f, fs - 1, 700), tall = lines.length * (fs + 2), h = Math.max(tall / Math.max(0.1, 1.1 - Math.max(...lines.map(l => wide(l, fs - 1, 700))) / qw), N[x.id] ? tall * 2 : 0); if (!best || h < best.h) best = { lines, h }; } return best; };
-    /* everything at one text size: the lines of each box and what they need, and whether it all fits */
-    const plan = fs => {
-      const small = Math.min(14.5, fs - 1), lh = small + 3.5, side = Math.min(15, fs), say = {}, r0 = { side: 0, stuck: 0 };
-      list.forEach(x => { const s = say[x.id] = {}, ww = x.k === 'q' ? qw : w;
-        if (x.k === 'q') Object.assign(s, inDiamond(x, fs));
-        else if (x.k === 'wait' || x.k === 'end') { s.lines = fill((x.k === 'wait' ? '⏱ ' : '') + x.t, ww - 30, x.k === 'wait' ? fs - 2 : fs, x.k === 'end' ? 700 : 400); s.h = s.lines.length * (fs + 2) + 14; }
-        else { s.lines = fill(x.t, ww - 22, fs, 700); s.sub = x.w ? fill(x.w, ww - 16, fs - 3) : []; s.th = s.lines.length * (fs + 4) + s.sub.length * (fs + 1); s.h = s.th + 14; }
-        s.note = x.bad && x.note ? fill(x.note, cw - 12, small) : [];
-        s.stuck = x.k === 'q' ? (x.ans || []).map((a, j) => a.to === '@stuck' ? { j, lines: fill(`✗ ${a.t}${a.say ? ': ' + a.say : ''}`, ww - 24, small, 600) } : null).filter(Boolean) : [];
-        s.stuck.forEach(b => { b.h = b.lines.length * lh + 22; });
-        s.stack = s.stuck.reduce((n, b) => n + b.h + 6, 0);
-        s.aside = x.aside ? fill(x.aside, w + 14, side) : []; s.ah = s.aside.length * (side + 4) + 16;
-        const up = stuckUp(x), roof = Math.max(up ? s.stack + 12 : 0, x.aside ? s.ah + 22 + (up ? s.stack + 6 : 0) : 0), last = cells[x.id].r === R - 1 ? 31 : 0;
-        s.gap = Math.max(x.k === 'q' ? 10 : 26, s.note.length ? s.note.length * lh + 20 + last : 0, !up && s.stack ? s.stack + 12 + last : 0, cells[x.id].r ? roof : 0);
-        if (!cells[x.id].r) { if (x.aside) r0.side = Math.max(r0.side, s.ah + 16); if (up) r0.stuck = Math.max(r0.stuck, s.stack + 22); } });
-      const top = y0 + head + (r0.side || 6) + r0.stuck + (allArrows.some(e => closesLoop(e, allArrows, list) && cells[e.from.id].r === 0) ? 34 : 6), vals = Object.values(say), rh = Math.min(Math.max(260, ...vals.map(s => s.h + s.gap)), (bh0 - (top - y0)) / R);
-      const gap = Math.max(...vals.map(s => s.gap)), bh = Math.max(40, ...list.filter(x => x.k !== 'q' && x.k !== 'wait' && x.k !== 'end').map(x => say[x.id].h), Math.min(120, rh - 62, rh - gap));
-      return { fs, small, lh, side, say, top, rh, bh, fits: vals.every(s => s.h + s.gap <= rh) };
+    const cw = Math.min(330, bw0 / C), w = Math.max(cw - 76, cw * 0.68), qW = Math.min(w * 1.06, cw - 44);
+    /* the words around a box, uncut: the note under a stuck step, the red box under each answer that leaves people
+       stuck, and a side note above. Each takes the height its lines need. */
+    const noteL = x => x.bad && x.note ? wrap(x.note, Math.floor((cw - 12) / 7.6)) : [];
+    const sayL = (x, a) => wrap(`${a.t}${a.say ? ': ' + a.say : ''}`, Math.floor((x.k === 'q' ? qW : w) / 8));
+    /* under a question: its red boxes, below the "what happened" label when there is one */
+    const tagged = x => !!(F && F[x.id]);
+    const hang = x => { if (x.k !== 'q') return 0; const h = (x.ans || []).filter(a => a.to === '@stuck').reduce((s, a) => s + sayL(x, a).length * 18 + 28, 0); return h && tagged(x) ? h + 26 : h; };
+    const asideL = x => x.aside ? wrap(x.aside, Math.floor((w + 30) / 8)) : [];
+    const asideH = x => x.aside ? asideL(x).length * 19 + 16 + 22 : 0;
+    const under = x => Math.max(noteL(x).length ? noteL(x).length * 18 + 26 : 0, stuckUp(x) ? 0 : hang(x));
+    const top = y0 + head + Math.max(6, ...first.map(x => asideH(x) + (stuckUp(x) ? hang(x) + 6 : 0))) + (allArrows.some(e => closesLoop(e, allArrows, list) && cells[e.from.id].r === 0) ? 34 : 6);
+    const rhMax = (bh0 - (top - y0)) / R, left = x0 + (bw0 - C * cw) / 2; let rh = Math.min(260, rhMax);
+    const gapBelow = Math.max(62, ...list.map(x => under(x) + 14));
+    /* Text is never cut. Every box is sized to hold all its words: boxes grow first, into the free space of their
+       row; only if that is not enough does the text get smaller, and it never goes below 11. A band at the top
+       keeps the words clear of the step number, one at the bottom clear of the ✗. */
+    const room = Math.max(52, rhMax - gapBelow), base = Math.min(120, Math.max(52, rh - 62)), fsMax = cw >= 260 ? 23 : cw >= 190 ? 18 : 15;
+    /* a band at the top for the step number, one at the bottom for the ✗: the words sit between them */
+    const topBand = (x, fs) => N[x.id] ? fs + 6 : 12, botBand = x => x.bad ? 26 : 12;
+    const lay = (x, fs) => {               /* the lines a box needs at this size, and the height they take */
+      /* a diamond narrows towards its points: every line, at its height, must fit the width there. Try a few
+         wrap widths and keep the one that needs the shortest diamond. */
+      if (x.k === 'q') { const cwd = (fs - 1) * 0.58, lh = fs + 2, hw = qW / 2; let best = null;
+        for (let f = 0.8; f > 0.29; f -= 0.05) { const ql = wrap(x.t, Math.max(6, Math.floor(qW * f / cwd))), rows = N[x.id] ? [String(N[x.id])].concat(ql) : ql;
+          let half = 0, ok = true;
+          rows.forEach((r, i) => { const dy = Math.abs(i - (rows.length - 1) / 2) * lh + lh / 2 + 7, sp = 1 - (r.length * cwd / 2 + 8) / hw;
+            if (sp < 0.08) ok = false; else half = Math.max(half, dy / sp); });
+          if (ok && (!best || 2 * half < best.h)) best = { ql, h: Math.ceil(2 * half) }; }
+        if (best) return best;
+        const ql = wrap(x.t, Math.max(6, Math.floor(qW * 0.4 / cwd))); return { ql, h: Math.ceil((ql.length + 1) * (fs + 2) / 0.5 + fs) }; }
+      if (x.k === 'wait' || x.k === 'end') { const tl = wrap((x.k === 'wait' ? '⏱ ' : '') + x.t, Math.max(6, Math.floor((w - 34) / (fs * 0.55)))); return { tl, h: tl.length * (fs + 2) + 26 }; }
+      const iw = w - 24, tl = wrap(x.t, Math.max(6, Math.floor(iw / (fs * 0.56)))), sub = x.w ? wrap(x.w, Math.max(6, Math.floor(iw / ((fs - 3) * 0.55)))) : [];
+      return { tl, sub, h: topBand(x, fs) + tl.length * (fs + 4) + (sub.length ? 4 + sub.length * (fs + 1) : 0) + botBand(x) };
     };
-    /* nothing is cut: the words come down in size until they all fit */
-    let L = plan(full); while (!L.fits && L.fs > 9) L = plan(L.fs - 1);
-    const { fs, small, lh, side, say, top, rh, bh } = L;
-    if (o.geo) Object.assign(o.geo, { left, top, cw, rh, C, R, cells, fs, lowered: fs < full, fits: L.fits });
+    const limit = x => x.k === 'q' ? rhMax - 10 - (stuckUp(x) ? 0 : hang(x)) : room;
+    let fs = fsMax; while (fs > 11 && list.some(x => lay(x, fs).h > limit(x))) fs--;
+    const L = {}; list.forEach(x => { L[x.id] = lay(x, fs); });
+    const need = k => Math.max(0, ...list.filter(k).map(x => L[x.id].h));
+    const bh = Math.max(base, need(x => x.k !== 'q' && x.k !== 'wait' && x.k !== 'end')), qh = Math.max(Math.min(base * 1.3, rh - 10), need(x => x.k === 'q'));
+    rh = Math.min(rhMax, Math.max(rh, bh + gapBelow, qh + 10 + Math.max(0, ...list.map(x => stuckUp(x) ? 0 : hang(x)))));   /* a taller row, if the boxes grew past it */
+    if (o.geo) Object.assign(o.geo, { left, top, cw, rh, C, R, cells });
+    if (o.fit) Object.assign(o.fit, { fs, fsMax, over: list.some(x => L[x.id].h > limit(x)) });
+    /* the middle of each row: a question with red boxes under it is raised as far as they need */
+    const qDown = Math.max(0, ...list.filter(x => x.k === 'q' && !stuckUp(x)).map(x => qh / 2 + 12 + hang(x)));
+    const mid = Math.max(Math.max(bh, qh) / 2 + 2, Math.min(Math.min(rh, bh + gapBelow) / 2, rh - qDown));
     /* the shape of each box, for the arrows */
-    const B = {}; list.forEach(x => { const q = cells[x.id], cx = left + q.c * cw + cw / 2, cy = top + q.r * rh + Math.min(rh, bh + 62) / 2;
-      const s = say[x.id], ww = x.k === 'q' ? qw : w, hh = x.k === 'q' ? Math.max(s.h, Math.min(bh * 1.3, rh - s.gap)) : x.k === 'wait' ? Math.max(s.h, Math.min(68, bh)) : x.k === 'end' ? Math.max(s.h, Math.min(76, bh)) : bh;
+    const B = {}; list.forEach(x => { const q = cells[x.id], cx = left + q.c * cw + cw / 2, cy = top + q.r * rh + mid;
+      const ww = x.k === 'q' ? qW : w, hh = x.k === 'q' ? qh : x.k === 'wait' ? Math.max(Math.min(68, base), L[x.id].h) : x.k === 'end' ? Math.max(Math.min(76, base), L[x.id].h) : bh;
       B[x.id] = { x, c: q.c, r: q.r, cx, cy, w: ww, h: hh, l: cx - ww / 2, rt: cx + ww / 2, t: cy - hh / 2, b: cy + hh / 2 }; });
     const all = Object.values(B);
     const hits = (pts, a, b) => { for (let i = 0; i < pts.length - 1; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[i + 1], lx = Math.min(x1, x2), hx = Math.max(x1, x2), ly = Math.min(y1, y2), hy = Math.max(y1, y2);
@@ -238,35 +258,34 @@
         labels.push(`<g data-edge="${esc(e.from.id)}" data-i="${e.j}"><text data-f="ans:${e.j}" x="${lx}" y="${ly}" font-size="${Math.max(15, fs - 3)}" fill="${back ? COL.loop : COL.mute}" stroke="#fff" stroke-width="5" paint-order="stroke" text-anchor="${flat ? 'middle' : 'start'}">${esc(e.label)}</text></g>`); } });
     list.forEach(x => { const n = B[x.id], { cx, cy, w: ww, h: hh, l, t: ty } = n, f = F && F[x.id], pal = PAL[x.c], rm = f && f.kind === 'removed';
       const fill = x.bad ? COL.badf : rm ? '#F4F3F1' : pal ? pal[0] : x.k === 'q' ? COL.q : x.k === 'wait' ? COL.wait : COL.box, edge = x.bad ? COL.bad : rm ? COL.rm : pal ? pal[1] : x.k === 'q' ? COL.qs : x.k === 'wait' ? COL.mute : COL.line, ink = rm ? COL.rm : COL.ink;
-      const s = say[x.id];
       out.push(`<g data-step="${esc(x.id)}">`);
-      if (x.k === 'q') { const ql = s.lines;
+      if (x.k === 'q') { const ql = L[x.id].ql;
         out.push(`<polygon points="${cx},${ty} ${n.rt},${cy} ${cx},${n.b} ${l},${cy}" fill="${fill}" stroke="${edge}" stroke-width="2.5"/>`,
-          T(ql, cx, cy - (ql.length - 1) * (fs + 2) / 2 + fs * 0.35, fs + 2, `data-f="t" font-size="${fs - 1}" font-weight="700" fill="${ink}"`),
-          N[x.id] ? `<text x="${cx}" y="${ty + hh * 0.25}" font-size="${fs - 3}" font-weight="800" fill="${edge}" text-anchor="middle">${N[x.id]}</text>` : '');
-      } else if (x.k === 'wait' || x.k === 'end') { const tl = s.lines;
+          T(ql, cx, cy - (ql.length - 1) * (fs + 2) / 2 + fs * 0.35 + (N[x.id] ? (fs + 2) / 2 + 3 : 0), fs + 2, `data-f="t" font-size="${fs - 1}" font-weight="700" fill="${ink}"`),
+          N[x.id] ? `<text x="${cx}" y="${cy - (ql.length - 1) * (fs + 2) / 2 + fs * 0.35 - (fs + 2) / 2 - 3}" font-size="${fs - 3}" font-weight="800" fill="${edge}" text-anchor="middle">${N[x.id]}</text>` : '');
+      } else if (x.k === 'wait' || x.k === 'end') { const tl = L[x.id].tl;
         out.push(`<rect x="${l}" y="${ty}" width="${ww}" height="${hh}" rx="${Math.min(hh / 2, 38)}" fill="${fill}" stroke="${edge}" stroke-width="${x.k === 'end' ? 3 : 2}"${x.k === 'wait' ? ' stroke-dasharray="7 6"' : ''}/>`,
           T(tl, cx, cy - (tl.length - 1) * (fs + 2) / 2 + fs * 0.35, fs + 2, `data-f="t" font-size="${x.k === 'wait' ? fs - 2 : fs}" font-weight="${x.k === 'end' ? 700 : 400}"${x.k === 'wait' ? ' font-style="italic"' : ''} fill="${x.k === 'wait' ? COL.mute : ink}"`));
-      } else { const sub = s.sub, tl = s.lines, y1 = cy - s.th / 2 + fs * 0.9;
+      } else { const { tl, sub } = L[x.id], th = tl.length * (fs + 4) + (sub.length ? 4 + sub.length * (fs + 1) : 0), tb = topBand(x, fs), y1 = ty + tb + (hh - tb - botBand(x) - th) / 2 + fs * 0.85;
         out.push(`<rect x="${l}" y="${ty}" width="${ww}" height="${hh}" rx="11" fill="${fill}" stroke="${edge}" stroke-width="${x.bad ? 3.5 : 2.5}"${rm ? ' stroke-dasharray="8 6"' : ''}/>`,
           T(tl, cx, y1, fs + 4, `data-f="t" font-size="${fs}" font-weight="700" fill="${ink}"`),
-          sub.length ? T(sub, cx, y1 + tl.length * (fs + 4) + 1, fs + 1, `data-f="w" font-size="${fs - 3}" fill="${COL.mute}"`) : '',
+          sub.length ? T(sub, cx, y1 + tl.length * (fs + 4) + 4, fs + 1, `data-f="w" font-size="${fs - 3}" fill="${COL.mute}"`) : '',
           N[x.id] ? `<text x="${l + 10}" y="${ty + fs + 3}" font-size="${fs - 2}" font-weight="800" fill="${x.bad ? COL.bad : edge === COL.line ? COL.mute : edge}">${N[x.id]}</text>` : '');
         if (x.bad) out.push(`<text x="${n.rt - 10}" y="${n.b - 9}" data-f="bad" font-size="19" font-weight="800" fill="${COL.bad}" text-anchor="end">✗</text>`);
       }
       const below = n.b + 8;
-      if (s.note.length) out.push(T(s.note, cx, below + 14, lh, `data-f="note" font-size="${small}" fill="${COL.bad}"`));
+      if (x.bad && x.note) out.push(T(noteL(x), cx, below + 14, 18, `data-f="note" font-size="14.5" fill="${COL.bad}"`));
       const up = stuckUp(x); let stack = 0;
-      s.stuck.forEach(({ j, lines: ll, h: bxh }) => { const by = up ? ty - 12 - stack - bxh : below + 4 + stack;
+      (x.ans || []).forEach((a, j) => { if (x.k !== 'q' || a.to !== '@stuck') return; const ll = sayL(x, a), bxh = ll.length * 18 + 22, by = up ? ty - 12 - stack - bxh : below + 4 + stack + (tagged(x) ? 26 : 0);
         out.push(`<line data-f="say:${j}" x1="${cx}" y1="${up ? ty : n.b}" x2="${cx}" y2="${up ? by + bxh : by}" stroke="${COL.bad}" stroke-width="2.5"/>`, `<rect data-f="say:${j}" x="${l + 6}" y="${by}" width="${ww - 12}" height="${bxh}" rx="6" fill="${COL.badf}" stroke="${COL.bad}" stroke-width="2"/>`,
-          T(ll, cx, by + 18, lh, `data-f="say:${j}" font-size="${small}" font-weight="600" fill="${COL.bad}"`)); stack += bxh + 6; });
+          T(ll.map((q, i) => i === 0 ? '✗ ' + q : q), cx, by + 18, 18, `data-f="say:${j}" font-size="14.5" font-weight="600" fill="${COL.bad}"`)); stack += bxh + 6; });
       if (f) { const tag = rm ? 'removed' : `${f.kind} → ${f.to || 'wait'}`, tw = tag.length * 8.6 + 18, c = rm ? COL.rm : f.kind === 'merged' || f.kind === 'moved' ? COL.loop : COL.ok, tx = x.k === 'q' ? cx - tw / 2 : n.rt - tw + 8, py = x.k === 'q' ? n.b - 4 : ty - 15;
         out.push(`<rect data-f="why" x="${tx}" y="${py}" width="${tw}" height="26" rx="13" fill="#fff" stroke="${c}" stroke-width="2"/>`, `<text data-f="why" x="${tx + tw / 2}" y="${py + 18}" font-size="14" font-weight="700" fill="${c}" text-anchor="middle">${esc(tag)}</text>`); }
       out.push('</g>');
       /* a side note, joined by a plain line: it takes no step */
-      if (x.aside) { const al = s.aside, ah = s.ah, aw = w + 30, ax = Math.max(left, cx - aw - 6), ay = ty - ah - 22 - (up ? stack + 6 : 0);
+      if (x.aside) { const al = asideL(x), ah = al.length * 19 + 16, aw = w + 30, ax = Math.max(left, cx - aw - 6), ay = ty - ah - 22 - (up ? stack + 6 : 0);
         out.push(`<g data-step="${esc(x.id)}"><line data-f="aside" x1="${ax + aw - 14}" y1="${ay + ah}" x2="${cx}" y2="${ty + (x.k === 'q' ? 0 : 1)}" stroke="${COL.mute}" stroke-width="2"/><rect data-f="aside" x="${ax}" y="${ay}" width="${aw}" height="${ah}" rx="8" fill="#fff" stroke="${COL.mute}" stroke-width="2"/>`,
-          T(al, ax + aw / 2, ay + 22, side + 4, `data-f="aside" font-size="${side}" fill="${COL.ink}"`), '</g>'); }
+          T(al, ax + aw / 2, ay + 22, 19, `data-f="aside" font-size="15" fill="${COL.ink}"`), '</g>'); }
     });
     return out.concat(labels).join('');
   }
