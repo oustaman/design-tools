@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outcomes maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611261900">
+</head>
+<body>
+<script src="tool-canvas.js?v=202611061200"></script>
+<script src="tool-slide.js?v=202611061200"></script>
+<script src="tool-grid.js?v=202611261900"></script>
+<script>
+(function () {
+  const MEASURE = 'c2', BASELINE = 'c3';
+  const columns = () => [
+    { id: 'c0', name: 'The outcome', tone: 'green', w: 1.4 },
+    { id: 'c1', name: 'For', tone: 'white', w: 0.85, choice: ['Users', 'Organisation', 'Both'] },
+    { id: MEASURE, name: 'How we measure it', tone: 'blue', w: 1.3 },
+    { id: BASELINE, name: 'Baseline today', tone: 'grey', w: 0.8 },
+    { id: 'c4', name: 'Where the number comes from', tone: 'white', w: 1 },
+    { id: 'c5', name: 'Target', tone: 'amber', w: 0.8 },
+  ];
+  const blank = () => ({ title: '', view: 'both', cells: {}, cols: columns(), rows: ['Outcome 1', 'Outcome 2', 'Outcome 3', 'Outcome 4'].map((name, i) => ({ id: 'r' + i, name, tone: 'white' })) });
+  /* a measure with no baseline can't show progress, so the slide says so */
+  function notes(r, c, S, typed) {
+    if (c.id !== BASELINE || typed.length || !S.cols.some(x => x.id === MEASURE)) return typed;
+    return String(S.cells[r.id + '|' + MEASURE] || '').trim() ? ['No baseline yet'] : typed;
+  }
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection: what good looks like';
+    s.rows = ['Report once', 'Know what happens', 'Bin collected', 'Less chasing'].map((name, i) => ({ id: 'r' + i, name, tone: 'white' }));
+    const fill = {
+      0: ['People report a missed bin once, in one go', 'Users', 'Share who finish the form without help', '', 'Form analytics', 'Most people'],
+      1: ['People know when the bin will be collected', 'Users', 'Share who get a date when they report', 'None get one', 'Case system', 'Everyone'],
+      2: ['Missed bins are collected quickly', 'Both', 'Share collected within two working days', '61%', 'Depot job sheets', 'To agree after the pilot'],
+      3: ['Fewer calls chasing a report', 'Organisation', 'Calls a week chasing a report', '140', 'Contact centre call reasons', 'Fall by half'],
+    };
+    Object.keys(fill).forEach(r => fill[r].forEach((t, c) => { if (t) s.cells[`r${r}|c${c}`] = t; }));
+    return s;
+  }
+  window.GridTool({
+    key: 'dt-outcomes', tag: 'OUTCOMES1', name: 'Outcomes maker', what: 'outcomes', kicker: 'OUTCOMES AND MEASURES',
+    colWord: 'column', laneWord: 'outcome', colName: n => 'Column ' + n, titleHint: 'The service, and what should be true when it works',
+    blank, example, notes, numbered: false,
+    help: `<ul>
+      <li><b>Outcomes</b> run down, one row each. Name each in a few words.</li>
+      <li><b>Read across:</b> the outcome, who it is for, how you measure it, the number today, where that number comes from, and the target.</li>
+      <li><b>Outcomes, not outputs.</b> “A new form” is an output. “People report once and know what happens next” is an outcome.</li>
+      <li><b>A measure with no baseline</b> shows “No baseline yet” on the slide, so you can say how you would get one.</li>
+      <li><b>Targets can wait.</b> “To agree after the pilot” is an honest target.</li>
+      <li><b>On slide</b> shows or hides an outcome, and one note per line becomes its own note on the slide.</li>
+      <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+      <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+    </ul>`,
+  });
+})();
+</script>
+</body>
+</html>

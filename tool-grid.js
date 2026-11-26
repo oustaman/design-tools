@@ -11,7 +11,7 @@ window.GridTool = function (cfg) {
 
   function tidy(s) {
     if (!s || !Array.isArray(s.cols) || !Array.isArray(s.rows)) return null;
-    s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both'; s.numbers = !!s.numbers;
+    s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both'; s.numbers = cfg.numbered !== false && !!s.numbers;
     /* an id goes into markup unescaped, so one that is not plain letters, digits and dashes is replaced */
     [['rows', 'r'], ['cols', 'c']].forEach(([k, p]) => s[k].forEach(x => { if (typeof x.id === 'string' && /^[\w-]+$/.test(x.id)) return;
       const old = x.id; x.id = nid(p);
@@ -48,7 +48,7 @@ window.GridTool = function (cfg) {
   </header>
   <div class="gt-main" id="main">
     <section class="gt-edit" aria-label="Edit">
-      <div class="gt-top"><label for="title">What is this for?</label><input id="title" type="text" placeholder="${esc(cfg.titleHint)}"><label class="gt-num"><input type="checkbox" id="numbers"> Number the ${esc(cfg.colWord)}s</label></div>
+      <div class="gt-top"><label for="title">What is this for?</label><input id="title" type="text" placeholder="${esc(cfg.titleHint)}"><label class="gt-num"${cfg.numbered === false ? ' hidden' : ''}><input type="checkbox" id="numbers"> Number the ${esc(cfg.colWord)}s</label></div>
       <div id="grid"></div>
       <div class="gt-add"><button type="button" class="tbtn xs" data-act="addcol">+ Add a ${esc(cfg.colWord)}</button><button type="button" class="tbtn xs" data-act="addrow">+ Add a ${esc(cfg.laneWord)}</button></div>
     </section>

@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Evidence maker — Design tools</title>
 <link rel="stylesheet" href="tool-shell.css?v=202611061200">
-<link rel="stylesheet" href="tool-grid.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611261900">
 </head>
 <body>
 <script src="tool-canvas.js?v=202611061200"></script>
 <script src="tool-slide.js?v=202611061200"></script>
-<script src="tool-grid.js?v=202611061200"></script>
+<script src="tool-grid.js?v=202611261900"></script>
 <script>
 (function () {
   const SOURCE = 'c1', CONFIDENCE = 'c3';
@@ -44,7 +44,7 @@
   window.GridTool({
     key: 'dt-evidence', tag: 'EVIDENCE1', name: 'Evidence maker', what: 'evidence', kicker: 'EVIDENCE',
     colWord: 'column', laneWord: 'finding', colName: n => 'Column ' + n, titleHint: 'The service, and the research this comes from',
-    blank, example, notes,
+    blank, example, notes, numbered: false,
     help: `<ul>
       <li><b>Findings</b> run down, one row each. Name each after its theme.</li>
       <li><b>Read across:</b> what you observed, where it came from, what you think it means, how sure you are, and the opportunity it opens.</li>
