@@ -22,6 +22,8 @@
 
 .gt-top{display:flex;gap:8px;align-items:center;padding:8px 12px;position:sticky;left:0;flex-wrap:wrap}
 .gt-top label{font-size:0.78rem;font-weight:640;white-space:nowrap}
+.gt-top .gt-num{display:inline-flex;gap:6px;align-items:center;font-weight:600;cursor:pointer}
+.gt-top .gt-num input{flex:none;min-width:0;width:auto;margin:0}
 .gt-top input{font:inherit;font-size:0.9rem;flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink)}
 
 .gt-grid{border-collapse:separate;border-spacing:0;margin:0 12px 12px}

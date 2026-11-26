@@ -11,7 +11,7 @@ window.GridTool = function (cfg) {
 
   function tidy(s) {
     if (!s || !Array.isArray(s.cols) || !Array.isArray(s.rows)) return null;
-    s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both';
+    s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both'; s.numbers = !!s.numbers;
     /* an id goes into markup unescaped, so one that is not plain letters, digits and dashes is replaced */
     [['rows', 'r'], ['cols', 'c']].forEach(([k, p]) => s[k].forEach(x => { if (typeof x.id === 'string' && /^[\w-]+$/.test(x.id)) return;
       const old = x.id; x.id = nid(p);
@@ -48,7 +48,7 @@ window.GridTool = function (cfg) {
   </header>
   <div class="gt-main" id="main">
     <section class="gt-edit" aria-label="Edit">
-      <div class="gt-top"><label for="title">What is this for?</label><input id="title" type="text" placeholder="${esc(cfg.titleHint)}"></div>
+      <div class="gt-top"><label for="title">What is this for?</label><input id="title" type="text" placeholder="${esc(cfg.titleHint)}"><label class="gt-num"><input type="checkbox" id="numbers"> Number the ${esc(cfg.colWord)}s</label></div>
       <div id="grid"></div>
       <div class="gt-add"><button type="button" class="tbtn xs" data-act="addcol">+ Add a ${esc(cfg.colWord)}</button><button type="button" class="tbtn xs" data-act="addrow">+ Add a ${esc(cfg.laneWord)}</button></div>
     </section>
@@ -67,7 +67,7 @@ window.GridTool = function (cfg) {
     const room = W - 2 * M - LAB - 8 * n, shares = S.cols.reduce((a, c) => a + (c.w || 1), 0) || 1, widths = S.cols.map(c => room * (c.w || 1) / shares), xs = widths.map((_, i) => M + LAB + widths.slice(0, i).reduce((a, b) => a + b + 8, 0));
     const titleLines = wrap(S.title, W - 2 * M, 42, 700);
     let y = M + 30 + Math.max(1, titleLines.length) * 50 + 14;
-    const headFs = Math.max(fs, 18), heads = S.cols.map((c, i) => wrap(c.name, widths[i] - 16, headFs, 700)), headH = Math.max(1, ...heads.map(h => h.length)) * headFs * 1.2 + 16;
+    const headFs = Math.max(fs, 18), badge = S.numbers ? Math.round(headFs * 1.35) : 0, heads = S.cols.map((c, i) => wrap(c.name, widths[i] - 16 - (badge ? badge + 8 : 0), headFs, 700)), headH = Math.max(1, ...heads.map(h => h.length)) * headFs * 1.2 + 16;
     const top = y; y += headH + 8;
     const laid = rows.map(r => {
       const label = wrap(r.name, LAB - 24, Math.max(fs, 18), 700), labH = label.length * Math.max(fs, 18) * 1.2 + 12;
@@ -77,7 +77,7 @@ window.GridTool = function (cfg) {
       y += out.h + 6 + (r.line ? 30 : 0);
       return out;
     });
-    return { fs, lh, padX, padY, gap, widths, xs, titleLines, top, headFs, heads, headH, laid, bottom: y + 10 };
+    return { fs, lh, padX, padY, gap, widths, xs, titleLines, top, headFs, badge, heads, headH, laid, bottom: y + 10 };
   }
   function pick() {
     for (let fs = BIG; fs >= SMALL; fs--) { const l = layout(fs); if (l.bottom <= H - M + 20) return { l, h: H }; }
@@ -90,7 +90,10 @@ window.GridTool = function (cfg) {
     S.cols.forEach((c, i) => {
       const x = l.xs[i];
       g += `<rect x="${x}" y="${l.top}" width="${l.widths[i]}" height="${l.headH}" rx="6" fill="#1A1618"/>`;
-      g += `<text font-size="${l.headFs}" font-weight="700" fill="#fff">${tspans(l.heads[i], x + 10, l.top + l.headFs + 3, l.headFs * 1.2)}</text>`;
+      const tx = l.badge ? x + 10 + l.badge + 8 : x + 10;
+      if (l.badge) { const r = l.badge / 2, cy = l.top + 8 + r;
+        g += `<circle cx="${x + 10 + r}" cy="${cy}" r="${r}" fill="#fff"/><text x="${x + 10 + r}" y="${(cy + l.headFs * 0.36).toFixed(1)}" font-size="${l.headFs}" font-weight="800" fill="#1A1618" text-anchor="middle">${i + 1}</text>`; }
+      g += `<text font-size="${l.headFs}" font-weight="700" fill="#fff">${tspans(l.heads[i], tx, l.top + l.headFs + 3, l.headFs * 1.2)}</text>`;
     });
     l.laid.forEach(row => {
       const lfs = Math.max(l.fs, 18);
@@ -149,7 +152,7 @@ window.GridTool = function (cfg) {
     $('grid').innerHTML = `<table class="gt-grid"><thead><tr><th>One note per line</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
   }
   function renderAll() {
-    armed = true; $('title').value = S.title; renderGrid(); chrome(); draw(); save();
+    armed = true; $('title').value = S.title; $('numbers').checked = S.numbers; renderGrid(); chrome(); draw(); save();
   }
   function chrome() {
     $('main').className = 'gt-main ' + S.view;
@@ -173,6 +176,7 @@ window.GridTool = function (cfg) {
   });
   document.addEventListener('change', e => { const t = e.target;
     if (t.dataset.f === 'cell' && t.tagName === 'SELECT') { const at = cellKey(t.dataset.r, t.dataset.c); if (S.cells[at] === t.value) return; hist.snap(); S.cells[at] = t.value; chrome(); draw(); save(); return; }
+    if (t.id === 'numbers') { hist.snap(); S.numbers = t.checked; renderAll(); return; }
     if (t.dataset.f !== 'show') return; hist.snap(); S.rows.find(r => r.id === t.dataset.id).hidden = !t.checked; renderAll(); });
 
   document.addEventListener('click', async e => {
@@ -196,7 +200,7 @@ window.GridTool = function (cfg) {
     }
     if (act === 'png') return window.Slide.copyPicture(window.Slide.pngOf(current.svg, W, current.h), cfg.tag.toLowerCase() + '.png', say);
     if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await window.Slide.pngOf(current.svg, W, current.h), cfg.tag.toLowerCase() + '.png'); } catch (x) { say('That did not work in this browser.'); } return; }
-    if (act === 'table') { b.closest('details').open = false; const rows = laneRows(), hd = ['', ...S.cols.map(c => c.name)];
+    if (act === 'table') { b.closest('details').open = false; const rows = laneRows(), hd = ['', ...S.cols.map((c, i) => (S.numbers ? (i + 1) + '. ' : '') + c.name)];
       const body = rows.map(r => [r.name, ...S.cols.map(c => r.scale ? (S.cells[cellKey(r.id, c.id)] || '') : notesOf(r, c).join('; '))]);
       const html = `<table border="1"><tr>${hd.map(x => `<th>${esc(x)}</th>`).join('')}</tr>${body.map(r => `<tr>${r.map(x => `<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</table>`;
       return window.Slide.copyTable(html, [hd, ...body].map(r => r.join('\t')).join('\n'), say); }
