@@ -111,6 +111,7 @@
   <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
     <button type="button" data-act="a2">Copy both lists as text</button>
     <button type="button" data-act="d2">Copy the table</button>
+    <button type="button" data-act="head" id="headbtn">Hide the header</button>
     <button type="button" data-act="example">See the example: one line</button>
     <button type="button" data-act="example2">See the example: with branches</button>
     <button type="button" data-act="seed" id="reseed">Copy “now” into my version again</button>
@@ -264,7 +265,7 @@
   const EMPTY = () => ({ goal: '', before: [], after: [], why: {}, view: 'before', tab: 'before', legend: {}, d2note: '' });
   /* whatever arrives, from this browser or a saved text, gets the fields this version expects */
   const tidyState = x => { if (!x || !Array.isArray(x.before) || !Array.isArray(x.after)) return null; migrate(x.before); migrate(x.after);
-    return { ...EMPTY(), ...x, why: x.why || {}, legend: x.legend || {} }; };
+    return { ...EMPTY(), ...x, why: x.why || {}, legend: x.legend || {}, head: x.head !== false }; };
   let S; try { S = tidyState(JSON.parse(localStorage.getItem(KEY) || 'null')); } catch (e) {}
   if (!S) S = EMPTY();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
@@ -328,7 +329,7 @@
   function setDock(on) { const was = dockOpen; dockOpen = on; $('dock').hidden = !on; $('dockb').setAttribute('aria-expanded', String(on)); $('dockb').classList.toggle('on', on); if (was !== on && view) view.fit($('slide'), 18, 2); }
   function renderAll() {
     renderList('before'); renderList('after'); renderD2();
-    $('goal').value = S.goal; $('d2note').value = S.d2note;
+    $('goal').value = S.goal; $('d2note').value = S.d2note; $('headbtn').textContent = S.head === false ? 'Show the header' : 'Hide the header';
     document.querySelectorAll('[data-tab]').forEach(b => { const on = b.dataset.tab === S.tab; b.setAttribute('aria-selected', String(on)); $('p-' + b.dataset.tab).hidden = !on; });
     S.view = S.tab === 'before' ? 'before' : S.tab === 'after' ? 'after' : 'both';
     if (S.tab !== lastTab) { lastTab = S.tab; setDock(S.tab === 'd2' ? true : S.tab === 'before' ? false : dockOpen); }
@@ -357,15 +358,16 @@
     let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${FONT}" text-rendering="geometricPrecision">
       ${DEFS}
       <rect width="${W}" height="${H}" fill="#fff"/>
-      <text x="${M}" y="${M + 22}" font-size="20" font-weight="700" fill="${COL.mute}" letter-spacing="2">FLOW DIAGRAM</text>
+      ${S.head === false ? '' : `<text x="${M}" y="${M + 22}" font-size="20" font-weight="700" fill="${COL.mute}" letter-spacing="2">FLOW DIAGRAM</text>
       ${goalLines()}
-      <text x="${W - M}" y="${M + 22}" font-size="22" fill="${COL.mute}" text-anchor="end">${esc(head)}</text>`;
+      <text x="${W - M}" y="${M + 22}" font-size="22" fill="${COL.mute}" text-anchor="end">${esc(head)}</text>`}`;
     const sum = c => `${c.steps} step${c.steps === 1 ? '' : 's'} · ${c.waits} wait${c.waits === 1 ? '' : 's'} · ${c.stuck} where people get stuck${c.loops ? ` · ${c.loops} back to an earlier step` : ''}`;
     /* along the bottom: the key to the colours */
     const shown = v === 'both' ? [...S.before, ...S.after] : S[v], keys = [...new Set(shown.map(x => x.c))].filter(k => PAL[k] && (S.legend[k] || '').trim());
     const lh = keys.length ? 44 : 0;
     if (lh) { let kx = M; const ky = H - 60; keys.forEach(k => { const t = S.legend[k].trim(); s += `<rect x="${kx}" y="${ky}" width="26" height="26" rx="6" fill="${PAL[k][0]}" stroke="${PAL[k][1]}" stroke-width="2.5"/><text data-legend="${k}" x="${kx + 34}" y="${ky + 20}" font-size="20" fill="${COL.ink}">${esc(t)}</text>`; kx += 34 + t.length * 10.5 + 34; }); }
-    const y0 = M + 112, bw0 = W - 2 * M, room = H - y0 - 30 - lh; FIT = [];
+    /* with the header off, the flow starts at the top margin */
+    const y0 = S.head === false ? M : M + 112, bw0 = W - 2 * M, room = H - y0 - 30 - lh; FIT = [];
     if (v === 'both') {
       /* each gets height for the rows it has */
       const rowsIn = l => l.length ? Math.max(...Object.values(cellsOf(l)).map(q => q.r)) + 1 : 1, r1 = rowsIn(S.before), r2 = rowsIn(S.after);
@@ -577,6 +579,7 @@
       S.after = S.before.map(x => { const c = JSON.parse(JSON.stringify(x)); c.id = ids[x.id]; c.from = x.k === 'end' ? [] : [x.id]; c.bad = false; c.note = ''; if (c.to && ids[c.to]) c.to = ids[c.to]; (c.ans || []).forEach(a => { if (ids[a.to]) a.to = ids[a.to]; }); return c; }); S.tab = 'after'; renderAll(); return; }
     if (act === 'undo') { if (!hist.length) return; closeInl(); fut.push(JSON.stringify(S)); S = JSON.parse(hist.pop()); renderAll(); return; }
     if (act === 'redo') { if (!fut.length) return; closeInl(); hist.push(JSON.stringify(S)); S = JSON.parse(fut.pop()); renderAll(); return; }
+    if (act === 'head') { b.closest('details').open = false; snap(); S.head = S.head === false; renderAll(); say(msg, S.head ? 'The header is back.' : 'The header is hidden. Your goal is kept for when you show it again.'); return; }
     if (act === 'example' || act === 'example2') { if (S.before.length && !confirm('Replace everything here with the example? Undo brings it back.')) return; snap(); S = tidyState(act === 'example' ? EXAMPLE() : COUNCIL()); selId = null; renderAll(); view.fit($('slide'), 18, 2); return; }
     if (act === 'clear') { if (!confirm('Clear everything and start again? Undo brings it back.')) return; snap(); S = EMPTY(); selId = null; renderAll(); return; }
     if (act === 'png') return copyPicture(slideBlob(), `flow-${S.view}.png`, msg, 'Copied. Paste it into your slide.');

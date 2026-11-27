@@ -19,6 +19,7 @@
   <button type="button" class="tbtn pri" data-act="png">Copy the slide</button>
   <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
     <button type="button" data-act="dl">Download the slide as a PNG</button>
+    <button type="button" data-act="head" id="headbtn">Hide the header</button>
     <button type="button" data-act="example">See the example</button>
     <button type="button" data-act="clear">Empty this board</button>
   </div></details>
@@ -90,16 +91,18 @@
   }
   function slideSvg(forExport) {
     const b = B(), titles = wrap(b.title || presets[S.cur].label, W - 112, 42, 700).slice();
-    const shift = (titles.length - 1) * 50;
-    let g = `<text x="56" y="74" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(presets[S.cur].label.toUpperCase())}</text>`;
-    g += `<text font-size="42" font-weight="700" fill="${INK}">${tspans(titles, 56, 124, 50)}</text>`;
+    /* with the header off, the plot rises to the top margin */
+    const shift = b.head === false ? 56 - P.y : (titles.length - 1) * 50;
+    const head = b.head !== false;
+    let g = head ? `<text x="56" y="74" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(presets[S.cur].label.toUpperCase())}</text>`
+      + `<text font-size="42" font-weight="700" fill="${INK}">${tspans(titles, 56, 124, 50)}</text>` : '';
     const top = P.y + shift, ph = P.h - shift, mx = P.x + P.w / 2, my = top + ph / 2;
     g += `<rect x="${P.x}" y="${top}" width="${P.w}" height="${ph}" fill="#F5F4F2"/><rect x="${mx}" y="${top}" width="${P.w / 2}" height="${ph / 2}" fill="${TONES.amber[0]}" opacity=".55"/>`;
     g += `<line x1="${mx}" y1="${top}" x2="${mx}" y2="${top + ph}" stroke="${LINE}" stroke-width="2"/><line x1="${P.x}" y1="${my}" x2="${P.x + P.w}" y2="${my}" stroke="${LINE}" stroke-width="2"/><rect x="${P.x}" y="${top}" width="${P.w}" height="${ph}" fill="none" stroke="${INK}" stroke-width="2"/>`;
     const corner = (t, x, y, anchor) => (t ? `<text x="${x}" y="${y}" font-size="24" font-weight="700" fill="${MUTE}" text-anchor="${anchor}">${esc(t)}</text>` : '');
     g += corner(b.q[0], P.x + 16, top + 36, 'start') + corner(b.q[1], P.x + P.w - 16, top + 36, 'end') + corner(b.q[2], P.x + 16, top + ph - 16, 'start') + corner(b.q[3], P.x + P.w - 16, top + ph - 16, 'end');
     if (!forExport) {
-      g += hit('title', 56, 88, W - 112, titles.length * 50 + 4, 42, 700, 'the title');
+      if (head) g += hit('title', 56, 88, W - 112, titles.length * 50 + 4, 42, 700, 'the title');
       g += hit('q0', P.x, top, P.w / 2, 52, 24, 700, 'the top left corner') + hit('q1', mx, top, P.w / 2, 52, 24, 700, 'the top right corner') + hit('q2', P.x, top + ph - 52, P.w / 2, 52, 24, 700, 'the bottom left corner') + hit('q3', mx, top + ph - 52, P.w / 2, 52, 24, 700, 'the bottom right corner');
     }
     const ax = 'font-size="21" fill="' + INK + '"', on = (k, t) => forExport ? '' : `data-edit="${k}" data-fs="21" tabindex="0" role="button" aria-label="Edit ${esc(t)}"`;
@@ -121,7 +124,7 @@
     b.q.forEach((t, i) => { $('q' + i).value = t; });
     $('list').innerHTML = b.notes.map(n => `<li><input type="text" data-n="${n.id}" value="${esc(n.t)}" aria-label="Note"><button type="button" data-act="del" data-id="${n.id}" aria-label="Remove ${esc(n.t)}">×</button></li>`).join('');
   }
-  function chrome() { const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r; }
+  function chrome() { const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r; $('headbtn').textContent = B().head === false ? 'Show the header' : 'Hide the header'; }
   function renderAll() { armed = true; renderSide(); drawSlide(); chrome(); save(); }
 
   /* where the next note lands: a loose grid across the middle, so nothing starts hidden */
@@ -145,7 +148,7 @@
   /* dragging, in slide units whatever size the slide is shown at */
   let drag = null;
   const toSlide = e => { const svg = $('plot'), m = svg.getScreenCTM().inverse(), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(m); return { x: q.x, y: q.y }; };
-  const area = () => { const shift = (wrap(B().title || presets[S.cur].label, W - 112, 42, 700).length - 1) * 50; return { top: P.y + shift, ph: P.h - shift }; };
+  const area = () => { const shift = B().head === false ? 56 - P.y : (wrap(B().title || presets[S.cur].label, W - 112, 42, 700).length - 1) * 50; return { top: P.y + shift, ph: P.h - shift }; };
   $('stage').addEventListener('pointerdown', e => {
     const g = e.target.closest('[data-note]'); if (!g) { if (sel) { sel = null; const was = $('stage').querySelector('.mx-note.on'); if (was) was.classList.remove('on'); } return; }
     const n = B().notes.find(x => x.id === g.dataset.note); if (!n) return;
@@ -180,6 +183,7 @@
     if (act === 'del') { hist.snap(); B().notes = B().notes.filter(n => n.id !== b.dataset.id); return renderAll(); }
     if (act === 'png') return window.Slide.copyPicture(png(), name, say);
     if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), name); } catch (x) { say('That did not work in this browser.'); } return; }
+    if (act === 'head') { b.closest('details').open = false; hist.snap(); B().head = B().head === false; say(B().head ? 'The header is back.' : 'The header is hidden. Your title is kept for when you show it again.'); return renderAll(); }
     if (act === 'example') { b.closest('details').open = false; hist.snap(); S.cur = 'risk'; S.boards.risk = example(); say('The example is in. Undo brings your work back.'); return renderAll(); }
     if (act === 'clear') { b.closest('details').open = false; hist.snap(); S.boards[S.cur] = blankBoard(S.cur); say('Emptied. Undo brings it back.'); return renderAll(); }
     if (act === 'help') return $('helpdlg').showModal();

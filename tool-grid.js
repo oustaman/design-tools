@@ -11,7 +11,7 @@ window.GridTool = function (cfg) {
 
   function tidy(s) {
     if (!s || !Array.isArray(s.cols) || !Array.isArray(s.rows)) return null;
-    s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both'; s.numbers = cfg.numbered !== false && !!s.numbers;
+    s.title = s.title || ''; s.cells = s.cells || {}; s.view = s.view || 'both'; s.head = s.head !== false; s.numbers = cfg.numbered !== false && !!s.numbers;
     /* an id goes into markup unescaped, so one that is not plain letters, digits and dashes is replaced */
     [['rows', 'r'], ['cols', 'c']].forEach(([k, p]) => s[k].forEach(x => { if (typeof x.id === 'string' && /^[\w-]+$/.test(x.id)) return;
       const old = x.id; x.id = nid(p);
@@ -41,6 +41,7 @@ window.GridTool = function (cfg) {
     <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
       <button type="button" data-act="dl">Download the slide as a PNG</button>
       <button type="button" data-act="table">Copy as a table</button>
+      <button type="button" data-act="head" id="headbtn">Hide the header</button>
       <button type="button" data-act="example">See the example</button>
       <button type="button" data-act="clear">Start again</button>
     </div></details>
@@ -66,7 +67,8 @@ window.GridTool = function (cfg) {
     const rows = laneRows(), n = Math.max(1, S.cols.length), lh = fs * 1.24, padX = Math.round(fs * 0.5), padY = Math.round(fs * 0.38), gap = Math.round(fs * 0.34);
     const room = W - 2 * M - LAB - 8 * n, shares = S.cols.reduce((a, c) => a + (c.w || 1), 0) || 1, widths = S.cols.map(c => room * (c.w || 1) / shares), xs = widths.map((_, i) => M + LAB + widths.slice(0, i).reduce((a, b) => a + b + 8, 0));
     const titleLines = wrap(S.title, W - 2 * M, 42, 700);
-    let y = M + 30 + Math.max(1, titleLines.length) * 50 + 14;
+    /* with the header off, the grid starts at the top margin */
+    let y = S.head !== false ? M + 30 + Math.max(1, titleLines.length) * 50 + 14 : M;
     const headFs = Math.max(fs, 18), badge = S.numbers ? Math.round(headFs * 1.35) : 0, heads = S.cols.map((c, i) => wrap(c.name, widths[i] - 16 - (badge ? badge + 8 : 0), headFs, 700)), headH = Math.max(1, ...heads.map(h => h.length)) * headFs * 1.2 + 16;
     const top = y; y += headH + 8;
     const laid = rows.map(r => {
@@ -85,8 +87,8 @@ window.GridTool = function (cfg) {
   }
   function draw() {
     const { l, h } = pick(), right = W - M;
-    let g = `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(cfg.kicker)}</text>`;
-    g += `<text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titleLines, M, M + 68, 50)}</text>`;
+    let g = S.head !== false ? `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(cfg.kicker)}</text>`
+      + `<text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titleLines, M, M + 68, 50)}</text>` : '';
     S.cols.forEach((c, i) => {
       const x = l.xs[i];
       g += `<rect x="${x}" y="${l.top}" width="${l.widths[i]}" height="${l.headH}" rx="6" fill="#1A1618"/>`;
@@ -122,7 +124,7 @@ window.GridTool = function (cfg) {
       }
     });
     /* what can be clicked, on top of everything else */
-    g += hit('title', M, M + 34, right - M, Math.max(1, l.titleLines.length) * 50 + 4, 42, 700, 'the title');
+    if (S.head !== false) g += hit('title', M, M + 34, right - M, Math.max(1, l.titleLines.length) * 50 + 4, 42, 700, 'the title');
     S.cols.forEach((c, i) => { g += hit('col:' + c.id, l.xs[i], l.top, l.widths[i], l.headH, l.headFs, 700, c.name); });
     l.laid.forEach(row => {
       g += hit('row:' + row.r.id, M, row.y, LAB - 4, row.h, Math.max(l.fs, 18), 700, row.r.name);
@@ -158,6 +160,7 @@ window.GridTool = function (cfg) {
     $('main').className = 'gt-main ' + S.view;
     document.querySelectorAll('[data-act="view"]').forEach(b => { const on = b.dataset.v === S.view; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r;
+    $('headbtn').textContent = S.head !== false ? 'Hide the header' : 'Show the header';
   }
   const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('msg').textContent = ''; }, 3500); };
   const move = (list, id, d) => { const i = list.findIndex(x => x.id === id), j = i + d; if (i < 0 || j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; };
@@ -182,6 +185,7 @@ window.GridTool = function (cfg) {
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, id = b.dataset.id;
     const change = fn => { hist.snap(); fn(); renderAll(); };
+    if (act === 'head') { b.closest('details').open = false; return change(() => { S.head = S.head === false; say(S.head !== false ? 'The header is back.' : 'The header is hidden. Your title is kept for when you show it again.'); }); }
     if (act === 'view') { S.view = b.dataset.v; chrome(); draw(); save(); return; }
     if (act === 'undo') { if (hist.undo()) renderAll(); return; }
     if (act === 'redo') { if (hist.redo()) renderAll(); return; }

@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timeline maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611270800">
+<style>
+  .tl-ev{border:1px solid var(--line);border-radius:7px;padding:6px;margin-bottom:6px}
+  .tl-ev.key{border-color:#8C2437}
+  .tl-row{display:flex;gap:4px;align-items:center;margin-top:4px}
+  .tl-row input[type=text],.tl-row select{flex:1;min-width:0}
+  .tl-row .when{flex:0 0 34%}
+  .tl-row label{display:flex;gap:4px;align-items:center;font-size:0.76rem;font-weight:400;margin:0;white-space:nowrap}
+  .tl-row label input{width:auto}
+  .mx-side .tl-add{margin-top:4px}
+  .tl-ph .tl-row select{flex:1 1 0}
+  .tl-dot{cursor:ew-resize}
+  .tl-edge{cursor:col-resize}
+  .tl-zone{cursor:grab}
+  .tl-moving,.tl-moving *{cursor:grabbing!important}
+  .tl-edge .grip{opacity:.3;transition:opacity .12s}
+  .tl-edge:hover .grip,.tl-edge:focus .grip,.tl-edge.on .grip{opacity:1}
+  .tl-edge:focus{outline:none}
+  .tl-hand{font-size:0.76rem;color:var(--ink-2)}
+  .tl-dot:focus{outline:none}
+  .tl-dot:focus .tl-ring,.tl-dot.on .tl-ring{stroke:#8C2437;stroke-width:4}
+  .tl-row select.side{flex:0 0 auto;width:auto}
+</style>
+</head>
+<body>
+<header class="tb-bar">
+  <a class="tb-back" href="index.html">← All tools</a>
+  <h1 class="tb-name">Timeline maker</h1>
+  <span class="gt-msg" id="msg" role="status"></span>
+  <span class="tb-sp"></span>
+  <button type="button" class="tbtn" data-act="undo" id="undo" title="Undo (Ctrl or ⌘ Z)">Undo</button>
+  <button type="button" class="tbtn" data-act="redo" id="redo" title="Redo (Ctrl or ⌘ Shift Z)">Redo</button>
+  <button type="button" class="tbtn" data-act="savebox" aria-haspopup="dialog">Save</button>
+  <button type="button" class="tbtn pri" data-act="png">Copy the slide</button>
+  <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
+    <button type="button" data-act="dl">Download the slide as a PNG</button>
+    <button type="button" data-act="table">Copy as a table</button>
+    <button type="button" data-act="head" id="headbtn">Hide the header</button>
+    <button type="button" data-act="example">See the example</button>
+    <button type="button" data-act="clear">Start again</button>
+  </div></details>
+  <button type="button" class="tbtn" data-act="help" aria-haspopup="dialog">Help</button>
+</header>
+<div class="mx-tool">
+  <main class="mx-stage" aria-label="The slide"><p class="gt-note"><span id="fit" role="status"></span> <span class="gt-tip">Click any words on the slide to change them.</span></p><div id="stage"></div></main>
+  <aside class="mx-side" aria-label="Edit">
+    <label for="title">Title</label>
+    <input id="title" type="text" placeholder="What happened, or what will happen">
+    <label for="place">Layout</label>
+    <select id="place"><option value="alt">Above and below the line, in turn</option><option value="above">All above the line</option></select>
+    <label for="spacing">Spacing</label>
+    <select id="spacing"><option value="even">Evenly</option><option value="dates">By the dates or numbers in When</option><option value="free">Free: where I drag each dot</option></select>
+    <label for="marks">Time marks</label>
+    <select id="marks"></select>
+    <div id="rangebox" class="mx-two" hidden><div><label for="rlo">Line starts</label><input id="rlo" type="text" placeholder="1 Jan 2026"></div><div><label for="rhi">Line ends</label><input id="rhi" type="text" placeholder="31 Dec 2026"></div></div>
+    <p class="mx-hint" id="rangemsg" hidden></p>
+    <p class="mx-hint">Drag a dot along the line to place an event by hand. With a dot selected, the arrow keys move it too.</p>
+    <h2>Events, in order</h2>
+    <div id="events"></div>
+    <button type="button" class="tbtn xs tl-add" data-act="addev">+ Add an event</button>
+    <h2>Phases</h2>
+    <p class="mx-hint">A phase shades the events it runs across.</p>
+    <div id="phases"></div>
+    <button type="button" class="tbtn xs tl-add" data-act="addph">+ Add a phase</button>
+  </aside>
+</div>
+<dialog class="dlg" id="helpdlg" aria-labelledby="helpdlg-h"><form method="dialog"><h2 id="helpdlg-h">How it works</h2>
+  <ul>
+    <li><b>Events</b> go along the line in the order you list them. Change the order with ↑ and ↓.</li>
+    <li><b>Spacing</b> has three settings. <b>Evenly</b> gives every event the same room. <b>By the dates or numbers in When</b> spaces them as time passed, so a long wait shows as a long gap: it reads “2025-03”, “March 2025”, “5 June 2026”, “Q2 2025”, “2026”, month names on their own, and numbers such as “Week 3” or “Day 10”, as long as every When uses the same kind. <b>Free</b> leaves each event where you drag it.</li>
+    <li><b>Drag a dot</b> along the line to place an event by hand, or select it and use ← and → (Shift for bigger steps). The first move switches the spacing to Free and keeps everything else where it was.</li>
+    <li><b>Time marks</b> put a tick on the line at a set interval: every week, 2 weeks, month, 2 months, quarter, 6 months, year or 5 years, or every 1, 2, 5… for numbers such as “Week 3”. <b>Auto</b> picks the finest interval that gives no more than 14 marks. When labels would touch, only every second or third one is written, and every tick stays.</li>
+    <li><b>Time marks need time behind the line:</b> spacing by date, or Free with a start and end. Moving from By date to Free keeps the dates as the start and end, so the marks stay put.</li>
+    <li><b>Side</b> puts an event’s card above or below the line. Auto takes turns along the line. Cards that would overlap stack outwards instead.</li>
+    <li><b>Key</b> marks a milestone: a diamond on the line and a stronger card.</li>
+    <li><b>Phases</b> shade a run of events, from one event to another: Discovery, Alpha, Beta, Live, or your own.</li>
+    <li><b>Move a phase</b> by dragging its shading or its name; it keeps its width. A click on the name, without moving, still lets you rename it. With the name selected, ← and → move it too.</li>
+    <li><b>Resize a phase</b> by dragging the small bar at either edge, or select the bar and use ← and → (Shift for bigger steps). Phases can then overlap, leave gaps, or start before the first event. <b>Fit to the events</b> puts it back, and so does choosing From or To again.</li>
+    <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call. Fewer events, or shorter words, keep it large.</li>
+    <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+  </ul>
+  <p><b>Click any words on the slide</b> to change them there. Tab moves to the next, and Esc finishes.</p>
+  <p>Your work stays in this browser: press <b>Save</b> to keep it as text and carry on anywhere.</p>
+  <div class="dlg-acts"><button class="tbtn pri" value="close">Got it</button></div></form></dialog>
+<div id="savehost"></div>
+<script src="tool-canvas.js?v=202611061200"></script>
+<script src="tool-slide.js?v=202611061200"></script>
+<script>
+(function () {
+  const { FONT, INK, MUTE, LINE, TONES, esc, $, wrap, tspans } = window.Slide;
+  const KEY = 'dt-timeline', TAG = 'TIMELINE1', W = 1920, H = 1080, M = 56, READABLE = 18, BIG = 26, SMALL = 12, STEM = 34;
+  const TONE_NAMES = { blue: 'Blue', green: 'Green', amber: 'Amber', red: 'Red', grey: 'Grey' };
+  let uid = 1; const nid = p => p + (uid++) + '-' + Date.now().toString(36);
+  const blank = () => ({ title: '', place: 'alt', spacing: 'even', marks: 'none', range: null, events: ['', '', '', ''].map(() => ({ id: nid('e'), when: '', what: '', detail: '', key: false, side: 'auto', pos: null })), phases: [] });
+  const SPACINGS = ['even', 'dates', 'free'], SIDES = ['auto', 'up', 'down'];
+  const okRange = r => r && typeof r === 'object' && typeof r.k === 'string' && Number.isFinite(r.lo) && Number.isFinite(r.hi) && r.hi > r.lo;
+  const okId = x => typeof x === 'string' && /^[\w-]+$/.test(x);
+  function tidy(s) {
+    if (!s || !Array.isArray(s.events)) return null;
+    s.title = String(s.title || ''); s.head = s.head !== false; s.place = s.place === 'above' ? 'above' : 'alt'; s.spacing = SPACINGS.includes(s.spacing) ? s.spacing : 'even'; s.marks = typeof s.marks === 'string' && /^(none|auto|[wmyn]\d+)$/.test(s.marks) ? s.marks : 'none'; s.range = okRange(s.range) ? { k: s.range.k, lo: s.range.lo, hi: s.range.hi } : null; s.phases = Array.isArray(s.phases) ? s.phases : [];
+    s.events = s.events.filter(e => e && typeof e === 'object').map(e => ({ id: okId(e.id) ? e.id : nid('e'), when: String(e.when || ''), what: String(e.what || ''), detail: String(e.detail || ''), key: !!e.key, side: SIDES.includes(e.side) ? e.side : 'auto', pos: Number.isFinite(e.pos) ? Math.max(0, Math.min(1, e.pos)) : null }));
+    const ids = new Set(s.events.map(e => e.id));
+    s.phases = s.phases.filter(p => p && typeof p === 'object').map(p => ({ id: okId(p.id) ? p.id : nid('p'), name: String(p.name || ''), from: ids.has(p.from) ? p.from : '', to: ids.has(p.to) ? p.to : '', tone: TONES[p.tone] ? p.tone : 'blue',
+      ...(Number.isFinite(p.a) && Number.isFinite(p.b) ? { a: Math.max(0, Math.min(1, Math.min(p.a, p.b))), b: Math.max(0, Math.min(1, Math.max(p.a, p.b))) } : {}) }));
+    return s;
+  }
+  let S = tidy(window.Slide.load(KEY)) || blank();
+  const hist = window.Slide.history(() => S, v => { S = tidy(v) || S; });
+  const save = () => window.Slide.store(KEY, S);
+  const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('msg').textContent = ''; }, 3500); };
+  $('savehost').innerHTML = window.Slide.saveDialog(TAG, 'timeline');
+
+  /* Reading "When" as a point in time: a date, a month, a quarter, a year, or a number ("Week 3", "Day 10").
+     Every event has to read the same way, or the spacing falls back to even and says which one did not. */
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const mon = t => { const i = MONTHS.indexOf(String(t).slice(0, 3)); return i >= 0 && (t.length <= 4 || 'january february march april may june july august september october november december sept'.split(' ').some(m => m.startsWith(t.replace(/\.$/, '')))) ? i : -1; };
+  function readWhen(raw) {
+    const t = String(raw).trim().toLowerCase().replace(/,/g, ' ').replace(/\s+/g, ' '); let m;
+    if (!t) return null;
+    if ((m = t.match(/^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?$/))) return { k: 'time', v: Date.UTC(+m[1], (+m[2] || 1) - 1, +m[3] || 1) };
+    if ((m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/))) return { k: 'time', v: Date.UTC(+m[3], +m[2] - 1, +m[1]) };
+    if ((m = t.match(/^(?:(\d{1,2})(?:st|nd|rd|th)? )?([a-z]+\.?) (\d{4})$/)) && mon(m[2]) >= 0) return { k: 'time', v: Date.UTC(+m[3], mon(m[2]), +m[1] || 1) };
+    if ((m = t.match(/^([a-z]+\.?) (\d{1,2})(?:st|nd|rd|th)? (\d{4})$/)) && mon(m[1]) >= 0) return { k: 'time', v: Date.UTC(+m[3], mon(m[1]), +m[2]) };
+    if ((m = t.match(/^q([1-4]) (\d{4})$/) || t.match(/^(\d{4}) q([1-4])$/))) { const [q, y] = m[1].length === 1 ? [+m[1], +m[2]] : [+m[2], +m[1]]; return { k: 'time', v: Date.UTC(y, (q - 1) * 3, 1) }; }
+    if (mon(t) >= 0) return { k: 'month', v: mon(t) };
+    if ((m = t.match(/^(?:[a-z]+ )?(-?\d+(?:\.\d+)?)$/))) return { k: 'n:' + t.replace(/-?\d.*$/, '').trim(), v: +m[1] };
+    return null;
+  }
+  /* places from 0 to 1, or the When that would not read */
+  function datePlaces(evs) {
+    const r = evs.map(e => readWhen(e.when)), bad = evs.find((e, i) => !r[i]);
+    if (bad) return { bad: bad.when ? `“${bad.when}” does not read as a date or number` : 'an event has no When' };
+    if (new Set(r.map(x => x.k)).size > 1) return { bad: 'the Whens mix kinds, such as dates and week numbers' };
+    let v = r.map(x => x.v);
+    /* months without a year run on into the next year when they go back */
+    if (r[0].k === 'month') { let add = 0, last = -Infinity; v = v.map(x => { if (x + add < last) add += 12; last = x + add; return last; }); }
+    const lo = Math.min(...v), hi = Math.max(...v);
+    return { at: v.map(x => hi > lo ? (x - lo) / (hi - lo) : 0.5), scale: hi > lo ? { k: r[0].k, lo, hi } : null };
+  }
+
+  /* Time marks: ticks along the line at a set interval, read from the scale behind it.
+     time: UTC milliseconds; month: a month count from January (13 is next January); n:<word>: plain numbers ("Week 3"). */
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DAY = 864e5;
+  const cap = t => t ? t[0].toUpperCase() + t.slice(1) : '';
+  function markChoices(k) {
+    if (k === 'time') return [['w1', 'Every week'], ['w2', 'Every 2 weeks'], ['m1', 'Every month'], ['m2', 'Every 2 months'], ['m3', 'Every quarter'], ['m6', 'Every 6 months'], ['y1', 'Every year'], ['y5', 'Every 5 years']];
+    if (k === 'month') return [['m1', 'Every month'], ['m2', 'Every 2 months'], ['m3', 'Every quarter'], ['m6', 'Every 6 months']];
+    const w = k.slice(2); return [1, 2, 5, 10, 20, 50].map(n => ['n' + n, `Every ${n}${w ? ' ' + w + (n > 1 && !/s$/.test(w) ? 's' : '') : ''}`]);
+  }
+  function ticks(sc, mark) {
+    if (!sc || mark === 'none') return [];
+    let choice = mark;
+    if (mark === 'auto' || !markChoices(sc.k).some(c => c[0] === mark)) {
+      /* the finest interval that gives no more than 14 marks */
+      choice = (markChoices(sc.k).find(([c]) => ticks(sc, c).length <= 14) || markChoices(sc.k).slice(-1)[0])[0];
+    }
+    const u = choice[0], step = +choice.slice(1), out = [];
+    if (sc.k === 'time') {
+      const d0 = new Date(sc.lo);
+      if (u === 'w') { let t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate()); while (new Date(t).getUTCDay() !== 1) t += DAY; /* Mondays */
+        for (; t <= sc.hi && out.length < 400; t += 7 * step * DAY) { const d = new Date(t); out.push({ v: t, label: d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + (d.getUTCMonth() === 0 && d.getUTCDate() <= 7 || !out.length ? ' ' + d.getUTCFullYear() : '') }); } }
+      else { const per = u === 'y' ? 12 * step : step; let m = d0.getUTCFullYear() * 12 + d0.getUTCMonth(); if (Date.UTC(Math.floor(m / 12), m % 12, 1) < sc.lo) m++; while (m % per) m++;
+        for (; Date.UTC(Math.floor(m / 12), m % 12, 1) <= sc.hi && out.length < 400; m += per) { const y = Math.floor(m / 12), mo = m % 12;
+          out.push({ v: Date.UTC(y, mo, 1), label: u === 'y' ? String(y) : per === 3 ? `Q${mo / 3 + 1} ${y}` : MON[mo] + (mo === 0 || !out.length ? ' ' + y : '') }); } }
+    } else {
+      const per = u === 'n' ? step : step; let v = Math.ceil(sc.lo / per) * per;
+      for (; v <= sc.hi + 1e-9 && out.length < 400; v += per) out.push({ v, label: sc.k === 'month' ? MON[((v % 12) + 12) % 12] : (cap(sc.k.slice(2)) + ' ' + v).trim() });
+    }
+    return out;
+  }
+  /* a scale shown in words, for the start and end boxes */
+  function fmt(k, v) { if (k === 'time') { const d = new Date(v); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); } if (k === 'month') return MON[((v % 12) + 12) % 12]; return (cap(k.slice(2)) + ' ' + v).trim(); }
+
+  /* Where everything goes, at the largest text size where every word fits. */
+  function layout() {
+    const evs = S.events, n = evs.length, alt = S.place === 'alt';
+    const titles = wrap(S.title || 'Timeline', W - 2 * M, 42, 700);
+    /* with the header off, the timeline starts at the top margin */
+    const top = S.head !== false ? 124 + (titles.length - 1) * 50 + 44 : M, bottom = H - M;
+    /* the end cards sit wholly on the slide, so no card is pushed into its neighbour */
+    const room = cw => (W - 2 * M - cw) / Math.max(1, n - 1);
+    /* a card never gets narrower than MINW; when events are close, cards stack in tiers instead */
+    const MINW = 270, fitW = c => Math.max(MINW, Math.min(460, (alt ? 2 : 1) * room(c) - 24));
+    let cw = 460; if (n > 1) cw = fitW(fitW(460));
+    const left = M + cw / 2, gap = n > 1 ? room(cw) : 0, even = i => n > 1 ? i / (n - 1) : 0.5;
+    /* even spacing; by the dates in When; or free, where each event keeps the place it was dragged to */
+    const X0 = M + 70, X1 = W - M - 70, dp = S.spacing === 'dates' ? datePlaces(evs) : null, note = dp && dp.bad ? 'Spaced evenly: ' + dp.bad + '.' : '';
+    const places = S.spacing === 'free' ? evs.map((e, i) => e.pos == null ? even(i) : e.pos) : dp && dp.at ? dp.at : null;
+    const xs = places ? places.map(p => X0 + p * (X1 - X0)) : evs.map((e, i) => n > 1 ? left + i * gap : W / 2);
+    /* the time behind the line: the dates themselves, or in Free the start and end you set */
+    const scale = S.spacing === 'dates' ? dp && dp.scale : S.spacing === 'free' ? S.range : null;
+    const tk = ticks(scale, S.marks).map(t => ({ ...t, x: X0 + (t.v - scale.lo) / (scale.hi - scale.lo) * (X1 - X0) }));
+    const marksNote = S.marks !== 'none' && !scale ? (S.spacing === 'even' ? 'Time marks need spacing by date, or Free with a start and end.' : S.spacing === 'free' ? 'Time marks need a start and end for the line.' : '') : '';
+    /* labels that would touch are thinned: every second, third… label shows, every mark stays */
+    let every = 1; const LFS = 18; if (tk.length > 1) { const widest = Math.max(...tk.map(t => window.Slide.width(t.label, LFS, 600))) + 18, sp = (tk[tk.length - 1].x - tk[0].x) / (tk.length - 1); every = Math.max(1, Math.ceil(widest / Math.max(1, sp))); }
+    tk.forEach((t, i) => { t.show = i % every === 0; });
+    const DSTEM = STEM + (tk.length ? 30 : 0);
+    const iOf = id => evs.findIndex(e => e.id === id);
+    /* a phase runs from its first event to its last, unless its edges have been dragged */
+    const PW = W - 2 * M;
+    const spans = S.phases.map(p => {
+      if (Number.isFinite(p.a)) return { p, x0: M + p.a * PW, x1: M + p.b * PW, hand: true };
+      let a = iOf(p.from), b = iOf(p.to); if (a < 0 && b < 0) return null; if (a < 0) a = b; if (b < 0) b = a;
+      const pad = places ? 50 : n > 1 ? gap / 2 : 240, lo = Math.min(xs[a], xs[b]), hi = Math.max(xs[a], xs[b]);
+      const x0 = Math.max(M, lo - pad), x1 = Math.min(W - M, hi + pad);
+      return { p, x0, x1 };
+    }).filter(Boolean);
+    /* "in turn" follows the order along the line, which can differ from the list once events are placed by hand */
+    const turn = []; xs.map((x, i) => i).sort((a, b) => xs[a] - xs[b] || a - b).forEach((i, r) => { turn[i] = r; });
+    function at(fs) {
+      const lh = fs * 1.24, pad = Math.round(fs * 0.55), pfs = Math.min(24, fs), plh = pfs * 1.2;
+      const phs = spans.map(s => ({ ...s, lines: wrap(s.p.name || 'Phase', s.x1 - s.x0 - 16, pfs, 700) }));
+      const strip = phs.length ? Math.max(...phs.map(s => s.lines.length)) * plh + 14 : 0;
+      const cards = evs.map((e, i) => {
+        const w = wrap(e.when, cw - 2 * pad, fs, 700), t = wrap(e.what, cw - 2 * pad, fs, 600), d = wrap(e.detail, cw - 2 * pad, fs * 0.86);
+        const h = pad * 2 + Math.max(1, w.length + t.length) * lh + (d.length ? d.length * fs * 0.86 * 1.24 + 4 : 0);
+        const up = e.side === 'up' ? true : e.side === 'down' ? false : !alt || turn[i] % 2 === 0;
+        if (!w.length && !t.length) { const ph = wrap('Click to add an event', cw - 2 * pad, fs); return { e, i, w, t, d, ph, h: pad * 2 + ph.length * lh, up }; }
+        return { e, i, w, t, d, h, up };
+      });
+      /* each side fills tiers from the line outwards: a card takes the first tier with room for it */
+      const stack = side => {
+        const ends = [], hs = [];
+        side.slice().sort((a, b) => xs[a.i] - xs[b.i]).forEach(c => {
+          const x0 = Math.max(M, Math.min(W - M - cw, xs[c.i] - cw / 2)); c.x = x0;
+          let k = ends.findIndex(e => e + 16 <= x0); if (k < 0) { k = ends.length; ends.push(0); hs.push(0); }
+          ends[k] = x0 + cw; hs[k] = Math.max(hs[k], c.h); c.tier = k;
+        });
+        const off = hs.map((h, k) => hs.slice(0, k).reduce((a, b) => a + b + 14, 0));
+        side.forEach(c => { c.off = off[c.tier]; });
+        return hs.length ? off[hs.length - 1] + hs[hs.length - 1] : 0;
+      };
+      const plotTop = top + strip + 10;
+      const upMax = stack(cards.filter(c => c.up)), downMax = stack(cards.filter(c => !c.up));
+      /* the line sits low when everything is above it, high when everything is below, otherwise between */
+      const hasUp = cards.some(c => c.up), hasDown = cards.some(c => !c.up), need = (hasUp ? STEM + upMax : 0) + (hasDown ? DSTEM + downMax : 0), avail = bottom - plotTop - 40;
+      const axis = !hasDown ? bottom - 40 : !hasUp ? plotTop + 40 + (tk.length ? 10 : 0) : Math.round(plotTop + STEM + upMax + (bottom - plotTop - need) / 2);
+      const fits = need <= avail + (hasUp && hasDown ? 40 : 0);
+      return { fs, lh, pad, pfs, plh, phs, strip, cards, axis, fits, plotTop };
+    }
+    let L = null;
+    for (let fs = BIG; fs >= SMALL; fs--) { L = at(fs); if (L.fits) break; }
+    return { ...L, PW, titles, top, bottom, xs, cw, gap, n, alt, note: [note, marksNote].filter(Boolean).join(' '), X0, X1, tk, LFS, DSTEM, scale };
+  }
+
+  function slideSvg(forExport) {
+    const L = layout(), ed = (k, fs, wt) => forExport ? '' : ` data-edit="${k}" data-fs="${fs}" data-wt="${wt}" tabindex="0" role="button"`;
+    let g = S.head !== false ? `<text x="${M}" y="74" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">TIMELINE</text>`
+      + `<text${ed('title', 42, 700)} font-size="42" font-weight="700" fill="${INK}" aria-label="Edit the title">${tspans(L.titles, M, 124, 50)}</text>` : '';
+    /* phases: a shaded span from the top of the plot to the bottom, named in a strip at the top */
+    L.phs.forEach(s => {
+      const [bg, fg] = TONES[s.p.tone];
+      g += `<rect x="${s.x0 + 3}" y="${L.top}" width="${s.x1 - s.x0 - 6}" height="${L.bottom - L.top}" rx="8" fill="${bg}" fill-opacity=".8" style="mix-blend-mode:multiply"${forExport ? '' : ` class="tl-zone" data-phase="${s.p.id}"`}/>`;
+      g += `<text${ed('p:' + s.p.id, L.pfs, 700)}${forExport ? '' : ` class="tl-zone" data-phase="${s.p.id}"`} font-size="${L.pfs}" font-weight="700" fill="${fg}" text-anchor="middle">${tspans(s.lines, (s.x0 + s.x1) / 2, L.top + 8 + L.pfs * 0.95, L.plh)}</text>`;
+    });
+    L.tk.forEach(t => { g += `<line x1="${t.x}" y1="${L.top + L.strip}" x2="${t.x}" y2="${L.bottom}" stroke="#E2DED9" stroke-width="1.5" stroke-dasharray="4 6"/>`; });
+    g += `<line x1="${M}" y1="${L.axis}" x2="${W - M - 6}" y2="${L.axis}" stroke="${INK}" stroke-width="3"/><path d="M${W - M - 18} ${L.axis - 9}L${W - M} ${L.axis}L${W - M - 18} ${L.axis + 9}" fill="none" stroke="${INK}" stroke-width="3"/>`;
+    L.tk.forEach(t => { g += `<line x1="${t.x}" y1="${L.axis - 8}" x2="${t.x}" y2="${L.axis + 8}" stroke="${INK}" stroke-width="2"/>`;
+      if (t.show) g += `<text x="${t.x}" y="${L.axis + 12 + L.LFS}" font-size="${L.LFS}" font-weight="600" fill="${MUTE}" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="5">${esc(t.label)}</text>`; });
+    const yOf = c => c.up ? L.axis - STEM - c.off - c.h : L.axis + L.DSTEM + c.off;
+    /* stems first, so every card sits over them; then the dots on the line */
+    L.cards.forEach(c => { const x = L.xs[c.i], y = yOf(c); g += `<line x1="${x}" y1="${L.axis}" x2="${x}" y2="${c.up ? y + c.h : y}" stroke="${c.e.key ? INK : LINE}" stroke-width="2"/>`; });
+    /* a dot can be dragged along the line, or moved with the arrow keys once selected */
+    L.cards.forEach(c => { const x = L.xs[c.i], name = c.e.when || c.e.what || 'event ' + (c.i + 1);
+      const mark = c.e.key ? `<path d="M${x} ${L.axis - 13}L${x + 13} ${L.axis}L${x} ${L.axis + 13}L${x - 13} ${L.axis}Z" fill="${TONES.amber[1]}" stroke="#fff" stroke-width="3"/>`
+                           : `<circle cx="${x}" cy="${L.axis}" r="9" fill="${TONES.blue[1]}" stroke="#fff" stroke-width="3"/>`;
+      g += forExport ? mark : `<g class="tl-dot${sel === c.e.id ? ' on' : ''}" data-dot="${c.e.id}" tabindex="0" role="slider" aria-label="Place of ${esc(name)} on the line. Drag it, or use the arrow keys." aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((x - L.X0) / (L.X1 - L.X0) * 100)}"><circle class="tl-ring" cx="${x}" cy="${L.axis}" r="22" fill="transparent"/>${mark}</g>`; });
+    L.cards.forEach(c => {
+      const cx = c.x, y = yOf(c), key = c.e.key;
+      g += `<rect x="${cx}" y="${y}" width="${L.cw}" height="${c.h}" rx="8" fill="${key ? TONES.amber[0] : '#fff'}" stroke="${key ? TONES.amber[1] : LINE}" stroke-width="${key ? 3 : 2}"/>`;
+      const tx = cx + L.pad; let ty = y + L.pad + L.fs * 0.92;
+      const when = c.w.length ? c.w : [], what = c.t.length ? c.t : [];
+      if (c.ph && !forExport) g += `<text${ed('w:' + c.e.id, L.fs, 700)} font-size="${L.fs}" fill="${MUTE}" font-style="italic">${tspans(c.ph, tx, ty, L.lh)}</text>`;
+      if (when.length) { g += `<text${ed('w:' + c.e.id, L.fs, 700)} font-size="${L.fs}" font-weight="700" fill="${key ? TONES.amber[1] : TONES.blue[1]}">${tspans(when, tx, ty, L.lh)}</text>`; ty += when.length * L.lh; }
+      if (what.length) { g += `<text${ed('t:' + c.e.id, L.fs, 600)} font-size="${L.fs}" font-weight="600" fill="${INK}">${tspans(what, tx, ty, L.lh)}</text>`; ty += what.length * L.lh; }
+      if (c.d.length) { const f = L.fs * 0.86; g += `<text${ed('d:' + c.e.id, f, 400)} font-size="${f.toFixed(1)}" fill="${MUTE}">${tspans(c.d, tx, ty + 4, f * 1.24)}</text>`; }
+    });
+    /* edge handles, on top of everything: drag one, or select it and use the arrow keys */
+    if (!forExport) L.phs.forEach(s => {
+      const fg = TONES[s.p.tone][1], gh = Math.max(28, L.strip - 12), name = s.p.name || 'the phase';
+      [['a', s.x0 + 3], ['b', s.x1 - 3]].forEach(([side, x]) => {
+        g += `<g class="tl-edge${selEdge === s.p.id + ':' + side ? ' on' : ''}" data-edge="${s.p.id}:${side}" tabindex="0" role="slider" aria-label="${side === 'a' ? 'Start' : 'End'} of ${esc(name)}. Drag it, or use the arrow keys." aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((x - M) / L.PW * 100)}">`
+          + `<rect x="${x - 12}" y="${L.top}" width="24" height="${L.bottom - L.top}" fill="transparent"/>`
+          + `<rect class="grip" x="${x - 3}" y="${L.top + (L.strip ? (L.strip - gh) / 2 + 2 : 8)}" width="6" height="${gh}" rx="3" fill="${fg}"/></g>`;
+      });
+    });
+    const fit = $('fit');
+    if (fit && !forExport) fit.textContent = (L.note ? L.note + ' ' : '') + (!L.fits ? `Too much to fit, even at size ${SMALL}. Shorten some words, or split the timeline in two.` : L.fs < READABLE ? `Text size ${L.fs}: too small to read on a call. Fewer events or shorter words will help.` : `Text size ${L.fs}.`);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family='${FONT}' id="${forExport ? 'x' : 'plot'}" role="group" aria-label="The timeline"><rect width="${W}" height="${H}" fill="#fff"/>${g}</svg>`;
+  }
+
+  function drawSlide() { $('stage').innerHTML = slideSvg(false); }
+  const evOpts = sel => `<option value="">Choose an event</option>` + S.events.map((e, i) => `<option value="${e.id}"${e.id === sel ? ' selected' : ''}>${esc((i + 1) + '. ' + (e.when || e.what || 'Event'))}</option>`).join('');
+  /* the interval list follows the kind of time on the line */
+  function renderMarks() {
+    const L = layout(), k = L.scale ? L.scale.k : (S.range && S.range.k) || 'time';
+    $('marks').innerHTML = [['none', 'None'], ['auto', 'Auto']].concat(markChoices(k)).map(([v, t]) => `<option value="${v}"${S.marks === v ? ' selected' : ''}>${t}</option>`).join('');
+    if (![...$('marks').options].some(o => o.selected)) $('marks').value = 'auto';
+    const free = S.spacing === 'free'; $('rangebox').hidden = !free;
+    if (free && document.activeElement !== $('rlo') && document.activeElement !== $('rhi')) { $('rlo').value = S.range ? fmt(S.range.k, S.range.lo) : ''; $('rhi').value = S.range ? fmt(S.range.k, S.range.hi) : ''; }
+  }
+  /* a start and end typed in Free: both must read, the same way, end after start */
+  function setRange() {
+    const a = readWhen($('rlo').value), b = readWhen($('rhi').value), msg = $('rangemsg');
+    let t = '';
+    if (!$('rlo').value.trim() && !$('rhi').value.trim()) S.range = null;
+    else if (!a || !b) t = 'Type a date, month or number in both, such as “1 Jan 2026”, “March 2026” or “Week 1”.';
+    else if (a.k !== b.k) t = 'The start and end need to be the same kind, such as two dates.';
+    else { let hi = b.v; if (a.k === 'month' && hi <= a.v) hi += 12; if (hi <= a.v) t = 'The line has to end after it starts.'; else S.range = { k: a.k, lo: a.v, hi }; }
+    msg.textContent = t; msg.hidden = !t;
+  }
+  function renderSide() {
+    $('title').value = S.title; $('place').value = S.place; $('spacing').value = S.spacing;
+    renderMarks();
+    $('events').innerHTML = S.events.map((e, i) => `<div class="tl-ev${e.key ? ' key' : ''}" data-ev="${e.id}">
+      <div class="tl-row"><input class="when" type="text" data-f="when" value="${esc(e.when)}" placeholder="When" aria-label="When, event ${i + 1}"><input type="text" data-f="what" value="${esc(e.what)}" placeholder="What happened" aria-label="What happened, event ${i + 1}"></div>
+      <div class="tl-row"><input type="text" data-f="detail" value="${esc(e.detail)}" placeholder="A detail (optional)" aria-label="Detail, event ${i + 1}"></div>
+      <div class="tl-row"><label><input type="checkbox" data-f="key"${e.key ? ' checked' : ''}> Key moment</label>
+        <select class="side" data-f="side" aria-label="Side of the line, event ${i + 1}">${[['auto', 'Side: auto'], ['up', 'Above'], ['down', 'Below']].map(([v, t]) => `<option value="${v}"${e.side === v ? ' selected' : ''}>${t}</option>`).join('')}</select><span class="tb-sp"></span>
+        <button type="button" class="tbtn xs" data-act="up" data-id="${e.id}" aria-label="Move event ${i + 1} earlier"${i ? '' : ' disabled'}>↑</button>
+        <button type="button" class="tbtn xs" data-act="down" data-id="${e.id}" aria-label="Move event ${i + 1} later"${i < S.events.length - 1 ? '' : ' disabled'}>↓</button>
+        <button type="button" class="tbtn xs" data-act="delev" data-id="${e.id}" aria-label="Remove event ${i + 1}">×</button></div></div>`).join('');
+    $('phases').innerHTML = S.phases.map((p, i) => `<div class="tl-ev tl-ph" data-ph="${p.id}">
+      <div class="tl-row"><input type="text" data-f="name" value="${esc(p.name)}" placeholder="Phase name" aria-label="Name, phase ${i + 1}">
+        <select data-f="tone" aria-label="Colour, phase ${i + 1}">${Object.keys(TONE_NAMES).map(t => `<option value="${t}"${t === p.tone ? ' selected' : ''}>${TONE_NAMES[t]}</option>`).join('')}</select>
+        <button type="button" class="tbtn xs" data-act="delph" data-id="${p.id}" aria-label="Remove phase ${i + 1}">×</button></div>
+      <div class="tl-row"><select data-f="from" aria-label="From, phase ${i + 1}">${evOpts(p.from)}</select><select data-f="to" aria-label="To, phase ${i + 1}">${evOpts(p.to)}</select></div>
+      ${Number.isFinite(p.a) ? `<div class="tl-row"><span class="tl-hand">Edges placed by hand</span><span class="tb-sp"></span><button type="button" class="tbtn xs" data-act="fitph" data-id="${p.id}">Fit to the events</button></div>` : ''}</div>`).join('');
+  }
+  function chrome() { const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r; $('headbtn').textContent = S.head !== false ? 'Hide the header' : 'Show the header'; }
+  function renderAll() { armed = true; renderSide(); drawSlide(); chrome(); save(); }
+
+  let armed = true;
+  document.addEventListener('focusin', e => { if (e.target.closest('.mx-side')) armed = true; });
+  const side = document.querySelector('.mx-side');
+  function edit(e) {
+    const t = e.target; if (armed) { hist.snap(); armed = false; }
+    if (t.id === 'title') S.title = t.value;
+    else if (t.id === 'place') S.place = t.value;
+    else if (t.id === 'spacing') { if (t.value === 'free') freeze(); S.spacing = t.value; renderMarks(); }
+    else if (t.id === 'marks') S.marks = t.value;
+    else if (t.id === 'rlo' || t.id === 'rhi') setRange();
+    else if (t.closest('[data-ev]')) {
+      const ev = S.events.find(x => x.id === t.closest('[data-ev]').dataset.ev); if (!ev) return;
+      if (t.dataset.f === 'key') { ev.key = t.checked; t.closest('.tl-ev').classList.toggle('key', t.checked); } else ev[t.dataset.f] = t.value;
+      /* keep the phase pickers' names in step with the event */
+      const i = S.events.indexOf(ev); side.querySelectorAll(`option[value="${ev.id}"]`).forEach(o => { o.textContent = (i + 1) + '. ' + (ev.when || ev.what || 'Event'); });
+    } else if (t.closest('[data-ph]')) { const p = S.phases.find(x => x.id === t.closest('[data-ph]').dataset.ph); if (p) { p[t.dataset.f] = t.value; if ((t.dataset.f === 'from' || t.dataset.f === 'to') && Number.isFinite(p.a)) { delete p.a; delete p.b; renderSide(); } } }
+    if (e.type === 'change') armed = true;
+    /* a When can change the kind of time on the line, and with it the intervals on offer */
+    if (t.dataset.f === 'when' || t.id === 'place') renderMarks();
+    drawSlide(); chrome(); save();
+  }
+  side.addEventListener('input', e => { if (e.target.tagName === 'INPUT' && e.target.type === 'text') edit(e); });
+  side.addEventListener('change', e => { if (e.target.tagName === 'SELECT' || e.target.type === 'checkbox') edit(e); });
+
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection: how the change happened';
+    s.events = [
+      ['January', 'Calls about missed bins reach 140 a week', ''], ['February', 'Discovery starts', 'Five calls listened to, three depot visits'],
+      ['March', 'Problem agreed with the depots', '', true], ['April', 'Shorter form prototyped', 'Twelve usability sessions'],
+      ['May', 'Pilot at one depot', 'Reports go straight to the crews', true], ['July', 'Pilot read-out', 'Collected in two days, down from four'],
+      ['September', 'Live on every round', '', true],
+    ].map(([when, what, detail, key]) => ({ id: nid('e'), when, what, detail, key: !!key, side: 'auto', pos: null }));
+    s.spacing = 'dates'; s.marks = 'm1';
+    const e = s.events;
+    s.phases = [['Discovery', 1, 2, 'blue'], ['Alpha', 3, 3, 'amber'], ['Beta', 4, 5, 'green'], ['Live', 6, 6, 'grey']].map(([name, a, b, tone]) => ({ id: nid('p'), name, from: e[a].id, to: e[b].id, tone }));
+    return s;
+  }
+  function table() {
+    const rows = S.events.map(e => [e.when, e.what, e.detail, e.key ? 'Key' : '', S.phases.filter(p => { const i = S.events.indexOf(e), a = S.events.findIndex(x => x.id === p.from), b = S.events.findIndex(x => x.id === p.to); return a >= 0 && b >= 0 && i >= Math.min(a, b) && i <= Math.max(a, b); }).map(p => p.name).join(', ')]);
+    const head = ['When', 'What happened', 'Detail', 'Key moment', 'Phase'];
+    const html = `<table><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+    return [html, [head, ...rows].map(r => r.join('\t')).join('\n')];
+  }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, id = b.dataset.id;
+    const png = () => window.Slide.pngOf(slideSvg(true), W, H), name = 'timeline.png', menu = () => { const d = b.closest('details'); if (d) d.open = false; };
+    const i = S.events.findIndex(x => x.id === id);
+    if (act === 'undo') { if (hist.undo()) renderAll(); return; }
+    if (act === 'redo') { if (hist.redo()) renderAll(); return; }
+    if (act === 'addev') { hist.snap(); S.events.push({ id: nid('e'), when: '', what: '', detail: '', key: false, side: 'auto', pos: null }); renderAll(); const all = $('events').querySelectorAll('.when'); if (all.length) all[all.length - 1].focus(); return; }
+    if (act === 'delev') { hist.snap(); S.events.splice(i, 1); S = tidy(S); return renderAll(); }
+    if ((act === 'up' && i > 0) || (act === 'down' && i >= 0 && i < S.events.length - 1)) { hist.snap(); const j = act === 'up' ? i - 1 : i + 1; [S.events[i], S.events[j]] = [S.events[j], S.events[i]]; renderAll(); const again = $('events').querySelector(`[data-act="${act}"][data-id="${id}"]`); if (again && !again.disabled) again.focus(); return; }
+    if (act === 'addph') { hist.snap(); S.phases.push({ id: nid('p'), name: '', from: (S.events[0] || {}).id || '', to: (S.events[S.events.length - 1] || {}).id || '', tone: ['blue', 'amber', 'green', 'grey', 'red'][S.phases.length % 5] }); renderAll(); const all = $('phases').querySelectorAll('[data-f="name"]'); if (all.length) all[all.length - 1].focus(); return; }
+    if (act === 'fitph') { const p = S.phases.find(x => x.id === id); if (p) { hist.snap(); delete p.a; delete p.b; say('The phase fits its events again.'); } return renderAll(); }
+    if (act === 'delph') { hist.snap(); S.phases = S.phases.filter(p => p.id !== id); return renderAll(); }
+    if (act === 'png') return window.Slide.copyPicture(png(), name, say);
+    if (act === 'dl') { menu(); try { window.Slide.download(await png(), name); } catch (x) { say('That did not work in this browser.'); } return; }
+    if (act === 'table') { menu(); const [h, t] = table(); return window.Slide.copyTable(h, t, say); }
+    if (act === 'head') { menu(); hist.snap(); S.head = S.head === false; say(S.head !== false ? 'The header is back.' : 'The header is hidden. Your title is kept for when you show it again.'); return renderAll(); }
+    if (act === 'example') { menu(); hist.snap(); S = example(); say('The example is in. Undo brings your work back.'); return renderAll(); }
+    if (act === 'clear') { menu(); hist.snap(); S = blank(); say('Started again. Undo brings it back.'); return renderAll(); }
+    if (act === 'help') return $('helpdlg').showModal();
+    if (act === 'savebox') { $('savecode').value = window.Slide.encode(TAG, S); $('savemsg').textContent = ''; return $('savedlg').showModal(); }
+    if (act === 'savecopy') return window.Slide.copyText($('savecode').value, t => { $('savemsg').textContent = t; });
+    if (act === 'loadcode') { const got = tidy(window.Slide.decode(TAG, $('loadcode').value)); if (!got) { $('savemsg').textContent = `That text didn’t open. It starts with ${TAG}, and part of it may have been cut off.`; return; } hist.snap(); S = got; renderAll(); $('savedlg').close(); say('Your work is back.'); }
+  });
+  addEventListener('keydown', e => { if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.altKey) return; if (e.target.matches('input[type=text], textarea')) return; e.preventDefault(); if (e.shiftKey ? hist.redo() : hist.undo()) renderAll(); });
+
+  /* Placing by hand. The first drag in Evenly or By date keeps every event where it is now and switches to Free. */
+  let sel = null, drag = null, selEdge = null, edge = null;
+  const MINW = 40;
+  /* the first move of an edge fixes both edges where they are, then moves the one you hold */
+  function moveEdge(key, x) {
+    const [pid, side] = key.split(':'), p = S.phases.find(q => q.id === pid); if (!p) return;
+    const L = layout(), sp = L.phs.find(q => q.p.id === pid); if (!sp) return;
+    if (!Number.isFinite(p.a)) { p.a = (sp.x0 - M) / L.PW; p.b = (sp.x1 - M) / L.PW; }
+    const v = Math.max(0, Math.min(1, (x - M) / L.PW)), min = MINW / L.PW;
+    if (side === 'a') p.a = Math.min(v, p.b - min); else p.b = Math.max(v, p.a + min);
+    p.a = Math.max(0, p.a); p.b = Math.min(1, p.b);
+  }
+  function pin(p) { if (Number.isFinite(p.a)) return; const L = layout(), sp = L.phs.find(q => q.p.id === p.id); if (sp) { p.a = (sp.x0 - M) / L.PW; p.b = (sp.x1 - M) / L.PW; } }
+  /* the whole phase slides, keeping its width, and stops at the slide's edges */
+  function shift(p, by) { const w = p.b - p.a, a = Math.max(0, Math.min(1 - w, p.a + by)); p.a = a; p.b = a + w; }
+  let shove = null, noClick = false;
+  const edgeX = key => { const [pid, side] = key.split(':'), sp = layout().phs.find(q => q.p.id === pid); return sp ? (side === 'a' ? sp.x0 : sp.x1) : 0; };
+  const focusEdge = key => { const d = $('stage').querySelector(`[data-edge="${key}"]`); if (d) d.focus({ preventScroll: true }); };
+  function freeze() { const L = layout(); S.events.forEach((e, i) => { e.pos = Math.max(0, Math.min(1, (L.xs[i] - L.X0) / (L.X1 - L.X0))); }); if (S.spacing === 'dates' && L.scale) S.range = { ...L.scale }; }
+  function toFree() { if (S.spacing === 'free') return; freeze(); S.spacing = 'free'; $('spacing').value = 'free'; renderMarks(); say('Spacing is now Free, so each event stays where you put it.'); }
+  const toSlide = e => { const svg = $('plot'), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+  const focusDot = id => { const d = $('stage').querySelector(`[data-dot="${id}"]`); if (d) d.focus({ preventScroll: true }); };
+  $('stage').addEventListener('pointerdown', e => {
+    const h = e.target.closest('[data-edge]');
+    if (h) { selEdge = h.dataset.edge; sel = null; edge = { key: selEdge, moved: false }; e.preventDefault(); drawSlide(); focusEdge(selEdge); return; }
+    selEdge = null;
+    const z = !e.target.closest('[data-dot]') && e.target.closest('[data-phase]');
+    if (z) { const ph = S.phases.find(q => q.id === z.dataset.phase); if (ph) shove = { ph, x: toSlide(e).x, moved: false }; return; }
+    const d = e.target.closest('[data-dot]'); if (!d) { sel = null; return; }
+    const ev = S.events.find(x => x.id === d.dataset.dot); if (!ev) return;
+    sel = ev.id; drag = { ev, moved: false }; e.preventDefault(); drawSlide(); focusDot(ev.id);
+  });
+  addEventListener('pointermove', e => {
+    if (shove) { const x = toSlide(e).x, PW = W - 2 * M;
+      if (!shove.moved) { if (Math.abs(x - shove.x) < 6) return; shove.moved = true; hist.snap(); pin(shove.ph); document.body.classList.add('tl-moving'); }
+      shift(shove.ph, (x - shove.x) / PW); shove.x = x; drawSlide(); chrome(); return; }
+    if (edge) { if (!edge.moved) { edge.moved = true; hist.snap(); } moveEdge(edge.key, toSlide(e).x); drawSlide(); chrome(); return; }
+    if (!drag) return; const L = layout(), q = toSlide(e);
+    if (!drag.moved) { drag.moved = true; hist.snap(); toFree(); }
+    drag.ev.pos = Math.max(0, Math.min(1, (q.x - L.X0) / (L.X1 - L.X0))); drawSlide(); chrome();
+  });
+  addEventListener('pointerup', () => {
+    /* a drag is not a click: the name does not open for typing after a move */
+    if (shove) { const moved = shove.moved; shove = null; document.body.classList.remove('tl-moving'); if (moved) { noClick = true; setTimeout(() => { noClick = false; }, 0); save(); chrome(); renderSide(); } return; }
+    if (edge) { const k = edge.key, moved = edge.moved; edge = null; save(); chrome(); if (moved) renderSide(); focusEdge(k); return; }
+    if (!drag) return; const id = drag.ev.id; drag = null; save(); chrome(); focusDot(id); });
+  $('stage').addEventListener('keydown', e => {
+    const z = e.target.closest('text[data-phase]');
+    if (z && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); const ph = S.phases.find(q => q.id === z.dataset.phase); if (!ph) return;
+      hist.snap(); pin(ph); shift(ph, (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 48 : 10) / (W - 2 * M)); renderSide(); drawSlide(); chrome(); save();
+      const again = $('stage').querySelector(`text[data-phase="${ph.id}"]`); if (again) again.focus({ preventScroll: true }); return; }
+    const h = e.target.closest('[data-edge]');
+    if (h) { const by = { ArrowLeft: -1, ArrowRight: 1 }[e.key]; if (!by) return; e.preventDefault(); const k = h.dataset.edge;
+      hist.snap(); moveEdge(k, edgeX(k) + by * (e.shiftKey ? 48 : 10)); selEdge = k; renderSide(); drawSlide(); chrome(); save(); focusEdge(k); return; }
+    const d = e.target.closest('[data-dot]'); if (!d) return;
+    const by = { ArrowLeft: -1, ArrowRight: 1, Home: -100, End: 100 }[e.key]; if (!by) return;
+    e.preventDefault(); const ev = S.events.find(x => x.id === d.dataset.dot); if (!ev) return;
+    hist.snap(); toFree(); ev.pos = Math.max(0, Math.min(1, ev.pos + by * (e.shiftKey ? 0.05 : 0.01))); sel = ev.id; drawSlide(); chrome(); save(); focusDot(ev.id);
+  });
+
+  const FIELD = { w: 'when', t: 'what', d: 'detail' };
+  window.Slide.editOnSlide({
+    host: $('stage'),
+    read: k => { if (k === 'title') return S.title; const [p, id] = k.split(':'); if (p === 'p') return (S.phases.find(x => x.id === id) || {}).name; return (S.events.find(x => x.id === id) || {})[FIELD[p]]; },
+    write: (k, v) => { const t = v.replace(/\n/g, ' '); if (k === 'title') { S.title = t; return; } const [p, id] = k.split(':'); if (p === 'p') { const ph = S.phases.find(x => x.id === id); if (ph) ph.name = t; return; } const ev = S.events.find(x => x.id === id); if (ev) ev[FIELD[p]] = t; },
+    first: () => hist.snap(),
+    after: () => { renderSide(); drawSlide(); chrome(); save(); },
+    clicks: k => !(noClick && k.startsWith('p:')),
+  });
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Before and after maker — Design tools</title>
+<link rel="stylesheet" href="tool-shell.css?v=202611061200">
+<link rel="stylesheet" href="tool-grid.css?v=202611270800">
+</head>
+<body>
+<script src="tool-canvas.js?v=202611061200"></script>
+<script src="tool-slide.js?v=202611061200"></script>
+<script src="tool-grid.js?v=202611271800"></script>
+<script>
+(function () {
+  const AFTER = 'c1', EVIDENCE = 'c3';
+  const columns = () => [
+    { id: 'c0', name: 'Before', tone: 'red', w: 1.2 },
+    { id: AFTER, name: 'After', tone: 'green', w: 1.2 },
+    { id: 'c2', name: 'What changed it', tone: 'blue', w: 1 },
+    { id: EVIDENCE, name: 'How we know', tone: 'white', w: 0.9 },
+  ];
+  const blank = () => ({ title: '', view: 'both', cells: {}, cols: columns(), rows: ['For the person using it', 'For staff', 'Time', 'Cost or effort'].map((name, i) => ({ id: 'r' + i, name, tone: 'white' })) });
+  /* an "after" nobody has checked is a hope, so the slide says so */
+  function notes(r, c, S, typed) {
+    if (c.id !== EVIDENCE || typed.length || !S.cols.some(x => x.id === AFTER)) return typed;
+    return String(S.cells[r.id + '|' + AFTER] || '').trim() ? ['Not checked yet'] : typed;
+  }
+  /* the same missed bin case as the other tools */
+  function example() {
+    const s = blank(); s.title = 'Report a missed bin collection: before and after the pilot';
+    const fill = {
+      0: ['Calls the council and waits on hold\nNo idea when the bin will come', 'Reports online in a few minutes\nGets a collection date straight away', 'A shorter form, one question a page\nA date on the last page', 'Twelve usability sessions\nForm analytics'],
+      1: ['Contact centre types reports into a spreadsheet\nDepots see them next morning', 'Reports go straight to the depot\nCrews see them in the cab', 'Reports reach the depot the same day', 'Pilot depot job sheets'],
+      2: ['Four days, on average, to collect a missed bin', 'Two days, on average', 'Reports joined to the round data', 'Depot job sheets, eight weeks'],
+      3: ['140 calls a week chasing a report', 'About 60 a week', 'People know the date when they report', ''],
+    };
+    Object.keys(fill).forEach(r => fill[r].forEach((t, c) => { if (t) s.cells[`r${r}|c${c}`] = t; }));
+    return s;
+  }
+  window.GridTool({
+    key: 'dt-beforeafter', tag: 'BEFOREAFTER1', name: 'Before and after maker', what: 'before and after', kicker: 'BEFORE AND AFTER',
+    colWord: 'column', laneWord: 'row', colName: n => 'Column ' + n, titleHint: 'The service, and the change you are showing',
+    blank, example, notes, numbered: false,
+    help: `<ul>
+      <li><b>Rows</b> run down: who or what the change is for. Rename them, add more, or hide one from the slide.</li>
+      <li><b>Read across:</b> how it was, how it is now, what changed it, and how you know.</li>
+      <li><b>Before is evidence too.</b> Write what you saw or counted, not how bad it felt.</li>
+      <li><b>An after with no evidence</b> shows “Not checked yet” on the slide. Leave the after empty if it has not changed yet.</li>
+      <li><b>Planned, not done yet?</b> Rename After to “What we expect”, and How we know to “How we will check”.</li>
+      <li><b>Nothing is cut off.</b> The text gets smaller until everything fits, and the tool says when it is too small to read on a call.</li>
+      <li><b>Copy the slide</b> puts a 16:9 picture on the clipboard. If the browser refuses, it downloads.</li>
+    </ul>`,
+  });
+})();
+</script>
+</body>
+</html>

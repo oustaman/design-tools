@@ -21,6 +21,7 @@
   <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
     <button type="button" data-act="dl">Download the slide as a PNG</button>
     <button type="button" data-act="table">Copy as a table</button>
+    <button type="button" data-act="head" id="headbtn">Hide the header</button>
     <button type="button" data-act="example">See the example</button>
     <button type="button" data-act="clear">Empty this canvas</button>
   </div></details>
@@ -114,7 +115,7 @@
     return { head, small, padX, padY, gap, lh, names, asks, notes, top, need: top + notes.reduce((a, n) => a + n.h + gap, 0) + 8 };
   }
   function layout(fs, h) {
-    const t = T(), titles = wrap(B().title || t.label, W - 2 * M, 42, 700), y0 = M + 30 + titles.length * 50 + 14, foot = t.credit ? 30 : 0;
+    const t = T(), titles = wrap(B().title || t.label, W - 2 * M, 42, 700), y0 = B().head === false ? M : M + 30 + titles.length * 50 + 14, foot = t.credit ? 30 : 0;
     const room = h - M + 20 - y0 - foot - GAP * (t.rows.length - 1), share = t.rows.reduce((a, b) => a + b, 0), heights = t.rows.map(r => room * r / share);
     const unit = (W - 2 * M - GAP * (t.columns - 1)) / t.columns;
     let fits = true;
@@ -133,8 +134,9 @@
   }
   function draw() {
     const { l, h } = pick(), t = T();
-    let g = `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(t.label.toUpperCase())}</text>`;
-    g += `<text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>`;
+    const head = B().head !== false;
+    let g = head ? `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">${esc(t.label.toUpperCase())}</text>`
+      + `<text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>` : '';
     l.laid.forEach(({ f, x, y, w, h: fh, a }) => {
       const tone = TONES[f.tone] || TONES.white;
       g += `<rect x="${x}" y="${y}" width="${w}" height="${fh}" rx="8" fill="#F5F4F2"/><rect x="${x}" y="${y}" width="${w}" height="5" fill="${tone[1]}"/>`;
@@ -147,7 +149,7 @@
         ny += n.h + a.gap;
       });
     });
-    g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
+    if (head) g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
     l.laid.forEach(({ f, x, y, w, h: fh }) => { g += hit('field:' + f.id, x, y, w, fh, l.fs, 400, f.name); });
     if (t.credit) g += `<text x="${W - M}" y="${h - 22}" font-size="18" fill="${MUTE}" text-anchor="end">${esc(t.credit)}</text>`;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="group" aria-label="${esc(B().title || t.label)}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
@@ -167,6 +169,7 @@
     $('main').className = 'gt-main ' + S.view;
     document.querySelectorAll('[data-act="view"]').forEach(b => { const on = b.dataset.v === S.view; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r;
+    $('headbtn').textContent = B().head === false ? 'Show the header' : 'Hide the header';
   }
   function renderAll() { armed = true; $('tpl').value = S.cur; $('title').value = B().title; $('prompts').checked = S.prompts; $('credit').innerHTML = T().credit ? `<a href="${T().link}" rel="noopener">${esc(T().credit)}</a>` : ''; renderFields(); chrome(); draw(); save(); }
 
@@ -207,6 +210,7 @@
     if (act === 'png') return window.Slide.copyPicture(png(), name, say);
     if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), name); } catch (x) { say('That did not work in this browser.'); } return; }
     if (act === 'table') { b.closest('details').open = false; const t = tableOf(); return window.Slide.copyTable(t.html, t.text, say); }
+    if (act === 'head') { b.closest('details').open = false; hist.snap(); B().head = B().head === false; say(B().head ? 'The header is back.' : 'The header is hidden. Your title is kept for when you show it again.'); return renderAll(); }
     if (act === 'example') { b.closest('details').open = false; hist.snap(); S.boards[S.cur] = JSON.parse(JSON.stringify(EXAMPLES[S.cur])); say('The example is in. Undo brings your work back.'); return renderAll(); }
     if (act === 'clear') { b.closest('details').open = false; hist.snap(); S.boards[S.cur] = blankBoard(); say('Emptied. Undo brings it back.'); return renderAll(); }
     if (act === 'help') return $('helpdlg').showModal();

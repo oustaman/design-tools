@@ -21,6 +21,7 @@
   <details class="menu"><summary class="tbtn">More</summary><div class="menu-in">
     <button type="button" data-act="dl">Download the slide as a PNG</button>
     <button type="button" data-act="outline">Copy as an outline</button>
+    <button type="button" data-act="head" id="headbtn">Hide the header</button>
     <button type="button" data-act="example">See the example</button>
     <button type="button" data-act="clear">Start again</button>
   </div></details>
@@ -61,7 +62,7 @@
   function level(list) { list.forEach((p, i) => { p.d = i ? Math.max(1, Math.min(list[i - 1].d + 1, p.d)) : 0; }); return list; }
   function tidy(s) {
     if (!s || !Array.isArray(s.pages) || !s.pages.length) return null;
-    s.title = s.title || ''; s.view = s.view || 'both';
+    s.title = s.title || ''; s.view = s.view || 'both'; s.head = s.head !== false;
     s.pages.forEach(p => { if (typeof p.id !== 'string' || !/^[\w-]+$/.test(p.id)) p.id = nid(); p.t = String(p.t || ''); p.d = +p.d || 0; p.m = MARKS[p.m] ? p.m : ''; });
     level(s.pages);
     return s;
@@ -91,7 +92,7 @@
     return { p, w, lines, mark, padX, padY, small, h: lines.length * fs * 1.24 + (mark ? small * 1.3 : 0) + 2 * padY };
   }
   function layout(fs) {
-    const titles = wrap(S.title || 'Site map', W - 2 * M, 42, 700), y0 = M + 30 + titles.length * 50 + 14, top = S.pages[0], rootW = Math.min(560, W - 2 * M);
+    const titles = wrap(S.title || 'Site map', W - 2 * M, 42, 700), y0 = S.head !== false ? M + 30 + titles.length * 50 + 14 : M, top = S.pages[0], rootW = Math.min(560, W - 2 * M);
     const root = { ...boxOf(top, rootW, fs), x: (W - rootW) / 2, y: y0 };
     const sections = []; S.pages.slice(1).forEach(p => { if (p.d === 1) sections.push([p]); else sections[sections.length - 1].push(p); });
     const n = Math.max(1, sections.length), cw = (W - 2 * M - GAP * (n - 1)) / n, indent = Math.min(fs * 1.1, cw * 0.12), secY = root.y + root.h + 56, gap = Math.round(fs * 0.34);
@@ -118,7 +119,7 @@
   }
   function draw() {
     const { l, h } = pick(), lc = `stroke="${LINE}" stroke-width="2.5" fill="none"`;
-    let g = `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">SITE MAP</text><text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>`;
+    let g = S.head !== false ? `<text x="${M}" y="${M + 18}" font-size="20" font-weight="700" fill="${MUTE}" letter-spacing="2">SITE MAP</text><text font-size="42" font-weight="700" fill="${INK}">${tspans(l.titles, M, M + 68, 50)}</text>` : '';
     /* the lines first, so the boxes sit on top of them */
     if (l.cols.length) {
       const cx = W / 2, rb = l.root.y + l.root.h, bus = l.secY - 26, mids = l.cols.map(c => c.x0 + l.cw / 2);
@@ -127,7 +128,7 @@
     }
     l.cols.forEach(c => c.boxes.forEach(b => { if (b.parent) { const sx = b.parent.x + Math.min(10, (b.x - b.parent.x) / 2 || 4); g += `<path d="M${sx.toFixed(1)},${(b.parent.y + b.parent.h).toFixed(1)} V${(b.y + b.h / 2).toFixed(1)} H${b.x.toFixed(1)}" ${lc}/>`; } }));
     g += box(l.root, l.fs); l.cols.forEach(c => c.boxes.forEach(b => { g += box(b, l.fs); }));
-    g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
+    if (S.head !== false) g += hit('title', M, M + 34, W - 2 * M, l.titles.length * 50 + 4, 42, 700, 'the title');
     [l.root, ...l.cols.flatMap(c => c.boxes)].forEach(b => { g += hit('page:' + b.p.id, b.x, b.y, b.w, b.h, l.fs, b.p.d < 2 ? 700 : 400, b.p.t || 'this page'); });
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" font-family='${FONT}' class="gt-slide" role="group" aria-label="${esc(S.title || 'Site map')}"><rect width="${W}" height="${h}" fill="#fff"/>${g}</svg>`;
     $('slide').innerHTML = svg;
@@ -148,6 +149,7 @@
     $('main').className = 'gt-main ' + S.view;
     document.querySelectorAll('[data-act="view"]').forEach(b => { const on = b.dataset.v === S.view; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     const [u, r] = hist.can(); $('undo').disabled = !u; $('redo').disabled = !r;
+    $('headbtn').textContent = S.head === false ? 'Show the header' : 'Hide the header';
   }
   function renderAll() {
     armed = true; $('title').value = S.title; renderList(); chrome(); draw(); save();
@@ -195,6 +197,7 @@
     if (act === 'png') return window.Slide.copyPicture(png(), 'sitemap.png', say);
     if (act === 'dl') { b.closest('details').open = false; try { window.Slide.download(await png(), 'sitemap.png'); } catch (x) { say('That did not work in this browser.'); } return; }
     if (act === 'outline') { b.closest('details').open = false; return window.Slide.copyText(outline(), say, 'Outline copied.'); }
+    if (act === 'head') { b.closest('details').open = false; return change(() => { S.head = S.head === false; say(S.head !== false ? 'The header is back.' : 'The header is hidden. Your title is kept for when you show it again.'); }); }
     if (act === 'example') { b.closest('details').open = false; return change(() => { S = example(); say('The example is in. Undo brings your work back.'); }); }
     if (act === 'clear') { b.closest('details').open = false; return change(() => { S = blank(); say('Cleared. Undo brings it back.'); }); }
     if (act === 'help') return $('helpdlg').showModal();
