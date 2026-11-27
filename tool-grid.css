@@ -40,6 +40,8 @@
 .gt-ctl button:disabled{opacity:.4;cursor:default}
 .gt-ctl label{font-size:0.72rem;display:inline-flex;gap:3px;align-items:center;margin-right:auto;cursor:pointer}
 tr.off td,tr.off th input[type=text]{opacity:.5}
+.gt-grid thead th.gt-addcol{min-width:0;width:1%;white-space:nowrap;vertical-align:middle}
+.gt-grid td.gt-addcol{border-bottom:0}
 .gt-add{position:sticky;left:0;display:flex;gap:6px;padding:0 12px 12px}
 
 /* the 2×2 maker */

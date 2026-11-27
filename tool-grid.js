@@ -148,8 +148,8 @@ window.GridTool = function (cfg) {
         <label><input type="checkbox" data-f="show" data-id="${r.id}" ${r.hidden ? '' : 'checked'}> On slide</label>
         <button type="button" data-act="rowu" data-id="${r.id}" aria-label="Move ${esc(r.name)} up" ${j ? '' : 'disabled'}>↑</button><button type="button" data-act="rowd" data-id="${r.id}" aria-label="Move ${esc(r.name)} down" ${j < m - 1 ? '' : 'disabled'}>↓</button><button type="button" data-act="rowdel" data-id="${r.id}" aria-label="Remove ${esc(r.name)}" ${m > 1 ? '' : 'disabled'}>×</button></div></th>
       ${S.cols.map(c => { const v = S.cells[cellKey(r.id, c.id)] || '', words = r.scale || c.choice, tag = `data-f="cell" data-r="${r.id}" data-c="${c.id}" aria-label="${esc(r.name)}, ${esc(c.name)}"`;
-        return `<td>${words ? `<select ${tag}><option value="">Not set</option>${words.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<textarea ${tag} rows="2" style="background:${(TONES[c.tone || r.tone] || TONES.white)[0]}">${esc(v)}</textarea>`}</td>`; }).join('')}</tr>`).join('');
-    $('grid').innerHTML = `<table class="gt-grid"><thead><tr><th>One note per line</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+        return `<td>${words ? `<select ${tag}><option value="">Not set</option>${words.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<textarea ${tag} rows="2" style="background:${(TONES[c.tone || r.tone] || TONES.white)[0]}">${esc(v)}</textarea>`}</td>`; }).join('')}<td class="gt-addcol"></td></tr>`).join('');
+    $('grid').innerHTML = `<table class="gt-grid"><thead><tr><th>One note per line</th>${head}<th class="gt-addcol"><button type="button" class="tbtn xs" data-act="addcol">+ Add a ${esc(cfg.colWord)}</button></th></tr></thead><tbody>${body}</tbody></table>`;
   }
   function renderAll() {
     armed = true; $('title').value = S.title; $('numbers').checked = S.numbers; renderGrid(); chrome(); draw(); save();
@@ -185,7 +185,8 @@ window.GridTool = function (cfg) {
     if (act === 'view') { S.view = b.dataset.v; chrome(); draw(); save(); return; }
     if (act === 'undo') { if (hist.undo()) renderAll(); return; }
     if (act === 'redo') { if (hist.redo()) renderAll(); return; }
-    if (act === 'addcol') return change(() => S.cols.push({ id: nid('c'), name: cfg.colName(S.cols.length + 1) }));
+    if (act === 'addcol') { change(() => S.cols.push({ id: nid('c'), name: cfg.colName(S.cols.length + 1) }));
+      const f = $('grid').querySelectorAll('input[data-f="col"]'), last = f[f.length - 1]; if (last) { last.focus(); last.select(); } return; }
     if (act === 'addrow') return change(() => S.rows.push({ id: nid('r'), name: 'New ' + cfg.laneWord, tone: 'white' }));
     if (act === 'coll') return change(() => move(S.cols, id, -1));
     if (act === 'colr') return change(() => move(S.cols, id, 1));
